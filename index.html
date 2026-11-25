@@ -1,0 +1,2873 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SmartOMR Enterprise Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+    #cameraVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #020617;
+      position: relative;
+      z-index: 1;
+    }
+    #cameraHudCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.55);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.55);
+      border-radius: 9999px;
+    }
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+
+  <!-- Toast Stack -->
+  <div id="toastContainer" class="fixed top-16 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+  <!-- ENTERPRISE HEADER & 3 WORKFLOW TABS -->
+  <header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 space-y-2.5">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+            <svg class="w-5 h-5 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h1 class="text-sm sm:text-base font-black tracking-tight text-white">SmartOMR Enterprise Edition</h1>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-extrabold">
+                Homography + 7-Burst Tenengrad + Letter Subtraction
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400">SMK Negeri 1 Gondang • Kalibrasi Mandiri Huruf Cetak (A–E) &amp; Topologi Silang X</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="resetCurrentSheet()" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/70 border border-slate-700 hover:border-rose-700/60 text-rose-300 text-xs font-bold transition">
+            🗑️ Reset Lembar
+          </button>
+        </div>
+      </div>
+
+      <!-- 3 Primary Tabs -->
+      <nav class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-slate-950/90 p-1 rounded-2xl border border-slate-800">
+        <button type="button" id="tabBtn-camera" onclick="switchWorkflowTab('camera')" class="py-2 px-3 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow transition">
+          <span>📷</span>
+          <span>1. Kamera Enterprise (7-Burst)</span>
+        </button>
+        <button type="button" id="tabBtn-photo" onclick="switchWorkflowTab('photo')" class="py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 font-bold text-xs flex items-center justify-center gap-1.5 transition">
+          <span>🖼️</span>
+          <span>2. Scan Foto / Lembar Utuh</span>
+        </button>
+        <button type="button" id="tabBtn-audit" onclick="switchWorkflowTab('audit')" class="py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 font-bold text-xs flex items-center justify-center gap-1.5 transition">
+          <span>📊</span>
+          <span>3. Audit Visual &amp; Rekap Nilai (<span id="gradebookBadgeCount">0</span>)</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
+
+    <!-- COLUMN STATUS & AUTO-ROUTING BAR -->
+    <section id="columnStatusSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-xl space-y-2.5">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          <span class="text-xs font-extrabold text-slate-200">Progres Pemindaian 4 Kolom LJK (No. 1–40)</span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button type="button" id="btnToggleAutoRoute" onclick="toggleAutoColumnRouting()" class="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-[11px] font-extrabold text-cyan-300 transition">
+            🧭 Auto-Route Kolom: ON
+          </button>
+          <button type="button" onclick="clearSelectedColumn(state.activeCol)" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-amber-950/60 border border-slate-700 hover:border-amber-600/50 text-[11px] font-bold text-amber-300 transition">
+            ↺ Ulangi Kolom Aktif
+          </button>
+        </div>
+      </div>
+
+      <div id="columnCardsRow" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 1: KAMERA ENTERPRISE (7-BURST TENENGRAD + HOMOGRAPHY)
+         ========================================================================= -->
+    <section id="view-camera" class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      <!-- Left 6 Cols: Live 60 FPS Camera & Alignment Gate -->
+      <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+        <div id="cameraViewport" class="relative w-full aspect-[3/4] max-h-[560px] bg-slate-950 flex items-center justify-center overflow-hidden select-none">
+          <video id="cameraVideo" autoplay muted playsinline webkit-playsinline></video>
+          <canvas id="cameraHudCanvas"></canvas>
+
+          <!-- Top Live Telemetry & Hardware Buttons -->
+          <div id="cameraLiveHud" class="hidden absolute top-2.5 inset-x-2.5 z-[3] flex flex-col gap-1.5 pointer-events-none">
+            <div class="flex items-center justify-between gap-1.5">
+              <span id="hudTargetColBadge" class="px-2.5 py-1 rounded-xl bg-slate-950/85 backdrop-blur border border-emerald-400/50 text-emerald-300 text-[11px] font-black shadow">
+                Target: Kolom 1 (No. 1–10)
+              </span>
+              <div class="flex items-center gap-1.5 pointer-events-auto">
+                <button type="button" id="btnCamTorch" onclick="toggleCameraTorch()" class="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-300 text-[11px] font-extrabold shadow">
+                  🔦 Senter
+                </button>
+                <button type="button" onclick="switchCameraLens()" class="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-white text-[11px] font-extrabold shadow">
+                  🔄 <span id="camLensName">Lensa</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="hudAlignmentPill" class="px-3 py-1.5 rounded-xl bg-slate-950/85 backdrop-blur border border-cyan-400/50 text-cyan-200 text-[11px] font-extrabold text-center shadow">
+              Arahkan 1 kolom LJK ke bingkai panduan (Jarak ideal ~12 cm)
+            </div>
+          </div>
+
+          <!-- 7-Burst Processing Progress Overlay -->
+          <div id="burstProcessingOverlay" class="hidden absolute inset-0 z-[4] bg-slate-950/88 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center mb-3 animate-pulse text-2xl">
+              🔬
+            </div>
+            <div id="burstStageHeading" class="text-sm font-black text-white">Tahap 1/4: Mengambil 7 frame resolusi tinggi...</div>
+            <div id="burstStageDetail" class="text-xs text-emerald-300 mt-1">Mengukur ketajaman Sobel Tenengrad</div>
+            <div class="w-full max-w-xs h-2 bg-slate-800 rounded-full overflow-hidden mt-3 border border-slate-700">
+              <div id="burstStageProgress" class="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-150" style="width: 10%;"></div>
+            </div>
+          </div>
+
+          <!-- Camera Fallback / Permission Overlay -->
+          <div id="cameraOfflineOverlay" class="absolute inset-0 z-[3] bg-slate-900/95 flex flex-col items-center justify-center p-5 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mb-3 text-2xl">
+              📷
+            </div>
+            <h2 id="camOfflineTitle" class="text-base font-extrabold text-white">Mengaktifkan Kamera Enterprise...</h2>
+            <p id="camOfflineDesc" class="text-xs text-slate-300 mt-1.5 max-w-sm leading-relaxed">
+              Menyiapkan aliran video 60 FPS dengan seleksi fokus Tenengrad 7-Burst. Anda juga dapat memindai foto lembar utuh di Tab 2.
+            </p>
+            <div id="camErrorBox" class="hidden mt-3 w-full max-w-sm rounded-xl bg-slate-950 border border-rose-500/40 p-3 text-left text-[11px] text-slate-300 space-y-1.5">
+              <div id="camErrorHeader" class="font-black text-rose-400">Izin Kamera Diperlukan</div>
+              <p id="camErrorBody"></p>
+              <a id="camOpenNewTabLink" href="#" target="_blank" rel="noopener noreferrer" class="hidden inline-block mt-1 px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/50 text-cyan-200 font-bold">
+                ↗️ Buka Aplikasi di Tab Baru
+              </a>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2 w-full max-w-sm">
+              <button type="button" onclick="initializeEnterpriseCamera()" class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg transition">
+                📷 Aktifkan Kamera
+              </button>
+              <button type="button" onclick="switchWorkflowTab('photo')" class="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold text-xs transition">
+                🖼️ Scan Foto Utuh
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Camera Shutter & Manual K1-K4 Bar -->
+        <div class="bg-slate-950 border-t border-slate-800 p-3 space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-1">
+              <span class="text-[11px] font-bold text-slate-400 mr-1">Kolom:</span>
+              <button type="button" onclick="selectActiveColumn(0)" class="cam-col-pill px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 text-[11px] font-black">K1</button>
+              <button type="button" onclick="selectActiveColumn(1)" class="cam-col-pill px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold">K2</button>
+              <button type="button" onclick="selectActiveColumn(2)" class="cam-col-pill px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold">K3</button>
+              <button type="button" onclick="selectActiveColumn(3)" class="cam-col-pill px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold">K4</button>
+            </div>
+
+            <button type="button" id="btnAutoTriggerMode" onclick="toggleAutoBurstWhenAligned()" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-extrabold text-slate-300 transition">
+              ⏱️ Auto-Scan Saat Pas: OFF
+            </button>
+          </div>
+
+          <button type="button" id="btnRunSevenBurst" onclick="executeSevenBurstCapture()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:brightness-105 active:scale-[0.99] text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition">
+            <span class="text-base">🎯</span>
+            <span>PINDAI ENTERPRISE (7-BURST)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right 6 Cols: Live Quick Audit Preview -->
+      <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-2xl space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div>
+            <h2 class="text-sm font-extrabold text-white">Hasil Rektifikasi Homografi &amp; Kalibrasi Huruf</h2>
+            <p class="text-[11px] text-slate-400">Citra kanonik 420×840 dengan pengurangan profil huruf cetak (A–E)</p>
+          </div>
+          <button type="button" onclick="switchWorkflowTab('audit')" class="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-xs font-extrabold transition">
+            📊 Audit Lengkap &amp; Nilai →
+          </button>
+        </div>
+
+        <div class="grid grid-cols-12 gap-3 items-stretch">
+          <div class="col-span-4 bg-slate-950 border border-slate-800 rounded-xl p-1.5 flex flex-col items-center justify-center min-h-[380px]">
+            <canvas id="camSideWarpedCanvas" width="210" height="420" class="w-full h-auto max-h-[420px] object-contain rounded-lg"></canvas>
+            <span id="camSideWarpedLabel" class="text-[10px] font-bold text-slate-400 mt-1.5 text-center">Kolom 1 (No. 1–10)</span>
+          </div>
+
+          <div id="camSideRowsList" class="col-span-8 flex flex-col justify-between gap-1.5"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: SCAN FOTO / LEMBAR UTUH (4 KOLOM SEKALIGUS + HOMOGRAPHY)
+         ========================================================================= -->
+    <section id="view-photo" class="hidden grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+        <div class="p-3 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs cursor-pointer shadow flex items-center gap-1.5 transition">
+              <span>📁</span>
+              <span>Unggah Foto LJK</span>
+              <input type="file" accept="image/*" onchange="handlePhotoSheetUpload(event)" class="hidden" />
+            </label>
+            <button type="button" onclick="loadReferenceSampleSheet()" class="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-200 font-extrabold text-xs flex items-center gap-1.5 transition">
+              <span>⚡</span>
+              <span>Muat Sampel LJK SMK N 1 Gondang</span>
+            </button>
+          </div>
+          <button type="button" onclick="autoLocateFourColumnBoxes(false)" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-slate-200 transition">
+            📐 Reset 4 Kotak
+          </button>
+        </div>
+
+        <div id="photoCanvasWrapper" class="relative w-full aspect-[3/4] max-h-[600px] bg-slate-950 flex items-center justify-center overflow-hidden select-none">
+          <canvas id="fullSheetDisplayCanvas" class="w-full h-full object-contain"></canvas>
+          <div id="interactiveBoxesLayer" class="hidden absolute inset-0 overflow-hidden"></div>
+
+          <div id="photoWelcomeOverlay" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-900/90">
+            <div class="w-14 h-14 rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center mb-3 text-2xl">
+              🖼️
+            </div>
+            <h3 class="text-sm font-extrabold text-white">Pindai Foto Lembar Jawab Utuh (40 Soal)</h3>
+            <p class="text-xs text-slate-400 mt-1.5 max-w-md leading-relaxed">
+              Unggah foto lembar jawab atau muat sampel LJK SMK Negeri 1 Gondang untuk menguji rektifikasi homografi, pengurangan huruf cetak (A–E), dan deteksi coretan pembatalan pada Q7 &amp; Q28.
+            </p>
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <label class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer shadow transition">
+                📁 Pilih Foto LJK
+                <input type="file" accept="image/*" onchange="handlePhotoSheetUpload(event)" class="hidden" />
+              </label>
+              <button type="button" onclick="loadReferenceSampleSheet()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-cyan-300 font-extrabold text-xs transition">
+                ⚡ Muat Sampel LJK Referensi
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border-t border-slate-800 p-3 space-y-2">
+          <button type="button" onclick="analyzeAllFourPhotoColumns()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:brightness-105 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition">
+            <span>🔬</span>
+            <span>ANALISIS ENTERPRISE 4 KOLOM (NO. 1–40)</span>
+          </button>
+          <p class="text-[11px] text-slate-400 text-center">
+            Geser kotak untuk memindahkan posisi kolom, atau tarik pegangan kuning di sudut kanan-bawah untuk mengubah ukuran.
+          </p>
+        </div>
+      </div>
+
+      <!-- Right 5 Cols: Summary of Detected Answers & Calibration Telemetry -->
+      <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h3 class="text-sm font-extrabold text-white">Ringkasan Hasil Deteksi (1–40)</h3>
+          <button type="button" onclick="switchWorkflowTab('audit')" class="px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs shadow transition">
+            📊 Audit &amp; Export Nilai →
+          </button>
+        </div>
+
+        <div id="photoQuickSummaryGrid" class="grid grid-cols-2 gap-2"></div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5">
+          <div class="font-extrabold text-cyan-300">Telemetri Kalibrasi Huruf Mandiri:</div>
+          <p id="calibrationTelemetryText" class="text-[11px] text-slate-400 leading-relaxed">
+            Belum ada pemindaian dijalankan. Profil median setiap huruf cetak (A, B, C, D, E) akan dihitung otomatis dari baris kosong pada kolom tersebut.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: AUDIT VISUAL & REKAP NILAI (ENTERPRISE DIAGNOSTICS + GRADEBOOK)
+         ========================================================================= -->
+    <section id="view-audit" class="hidden space-y-4 animate-fade-in">
+
+      <!-- Top Row: Visual Homography Audit (Left) + Student Metadata & Score Summary (Right) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        <!-- Visual Homography Warped Canvas & Per-Question Diagnostic Matrix -->
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+            <div>
+              <h2 class="text-sm font-extrabold text-white">🔬 Audit Visual Kanonik &amp; Skor Silang Net (A–E)</h2>
+              <p class="text-[11px] text-slate-400">Citra homografi 420×840 • Sorotan hijau = Silang X valid, kuning = Coretan/Ganda (⚠)</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button type="button" onclick="setAuditColumn(0)" id="auditColTab-0" class="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 text-[11px] font-black">K1 (1–10)</button>
+              <button type="button" onclick="setAuditColumn(1)" id="auditColTab-1" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold">K2 (11–20)</button>
+              <button type="button" onclick="setAuditColumn(2)" id="auditColTab-2" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold">K3 (21–30)</button>
+              <button type="button" onclick="setAuditColumn(3)" id="auditColTab-3" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold">K4 (31–40)</button>
+            </div>
+          </div>
+
+          <!-- Letter Baseline Signature Bar -->
+          <div id="auditLetterBaselineBar" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <span class="font-bold text-slate-400">Baseline Huruf Cetak Kolom Ini:</span>
+            <span id="auditBaselineValues" class="font-mono font-bold text-cyan-300">A: -- | B: -- | C: -- | D: -- | E: --</span>
+          </div>
+
+          <div class="grid grid-cols-12 gap-3 items-stretch">
+            <!-- Warped Canonical Column Image -->
+            <div class="col-span-4 bg-slate-950 border border-slate-800 rounded-xl p-1.5 flex flex-col items-center justify-center min-h-[420px]">
+              <canvas id="auditCanonicalCanvas" width="210" height="420" class="w-full h-auto max-h-[440px] object-contain rounded-lg"></canvas>
+              <span id="auditCanonicalCaption" class="text-[10px] font-bold text-slate-400 mt-1.5 text-center">Kanonik 420×840 • Kolom 1</span>
+            </div>
+
+            <!-- 10-Row Diagnostic Matrix with A-E Net Scores, Confidence & Override Buttons -->
+            <div id="auditDiagnosticRows" class="col-span-8 flex flex-col justify-between gap-1.5"></div>
+          </div>
+        </div>
+
+        <!-- Student Metadata, Score Summary & Collapsible Answer Key Editor -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h2 class="text-sm font-extrabold text-white">Identitas Siswa &amp; Hasil Nilai</h2>
+              <span class="text-[11px] font-extrabold text-emerald-400">Skala 0 – 100</span>
+            </div>
+
+            <div class="space-y-2 text-xs">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Siswa</label>
+                <input type="text" id="metaStudentName" placeholder="Nathasyia Yuliana Putri" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:outline-none text-white font-semibold" />
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Kelas</label>
+                  <input type="text" id="metaStudentClass" placeholder="XI DKV 1" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:outline-none text-white font-semibold" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">No. Peserta</label>
+                  <input type="text" id="metaStudentNumber" placeholder="XI-5-019" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:outline-none text-white font-semibold" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mata Pelajaran</label>
+                  <input type="text" id="metaSubject" placeholder="PAI" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:outline-none text-white font-semibold" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 4 Score Cards -->
+            <div class="grid grid-cols-4 gap-2 text-center pt-1">
+              <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2">
+                <div class="text-[10px] font-bold text-emerald-400 uppercase">Benar</div>
+                <div id="scoreCorrectCount" class="text-xl font-black text-emerald-400">0</div>
+              </div>
+              <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2">
+                <div class="text-[10px] font-bold text-rose-400 uppercase">Salah</div>
+                <div id="scoreWrongCount" class="text-xl font-black text-rose-400">0</div>
+              </div>
+              <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2">
+                <div class="text-[10px] font-bold text-amber-400 uppercase">Ragu/Kosong</div>
+                <div id="scoreDoubtCount" class="text-xl font-black text-amber-400">40</div>
+              </div>
+              <div class="bg-gradient-to-br from-emerald-500 to-teal-400 text-slate-950 rounded-xl p-2 shadow-lg">
+                <div class="text-[10px] font-extrabold uppercase opacity-80">Nilai Akhir</div>
+                <div id="scoreFinalValue" class="text-xl font-black">0.0</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" onclick="saveStudentToGradebook()" class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition">
+                💾 Simpan ke Rekap Nilai
+              </button>
+              <button type="button" onclick="exportGradebookCSV()" class="py-2.5 px-3.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 font-extrabold text-xs transition">
+                📥 Export CSV / Excel
+              </button>
+            </div>
+          </div>
+
+          <!-- Collapsible Answer Key Editor -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <button type="button" onclick="toggleAnswerKeyDrawer()" class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800/50 transition">
+              <div class="flex items-center gap-2">
+                <span class="text-sm">🔑</span>
+                <span class="text-xs font-extrabold text-white">Editor Kunci Jawaban (40 Soal)</span>
+              </div>
+              <span id="keyDrawerChevron" class="text-xs font-bold text-emerald-400">▼ Buka</span>
+            </button>
+
+            <div id="answerKeyDrawerBody" class="hidden border-t border-slate-800 p-3.5 space-y-3">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button type="button" onclick="copyScannedAsAnswerKey()" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[11px] font-extrabold transition">
+                  📋 Jadikan Hasil Scan Kunci
+                </button>
+                <button type="button" onclick="resetDefaultAnswerKey()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-bold transition">
+                  Reset Default
+                </button>
+              </div>
+
+              <div class="flex gap-1.5">
+                <input type="text" id="keyPasteField" placeholder="Tempel 40 huruf (AEBCCC...)" class="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-mono uppercase text-white focus:border-emerald-500 focus:outline-none" />
+                <button type="button" onclick="applyPastedAnswerKey()" class="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs transition">
+                  Terapkan
+                </button>
+              </div>
+
+              <div id="answerKeyMatrixGrid" class="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved Gradebook Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-extrabold text-white">📋 Rekapitulasi Daftar Nilai Kelas</h3>
+            <p class="text-[11px] text-slate-400">Tersimpan otomatis di browser dan siap diunduh ke Excel / CSV</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="exportGradebookCSV()" class="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition">
+              📥 Export CSV / Excel
+            </button>
+            <button type="button" onclick="clearGradebook()" class="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-800 text-rose-300 font-bold text-xs transition">
+              Kosongkan
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-950 text-slate-300 border-b border-slate-800">
+                <th class="py-2.5 px-3 font-bold">No</th>
+                <th class="py-2.5 px-3 font-bold">Nama Siswa</th>
+                <th class="py-2.5 px-3 font-bold">Kelas</th>
+                <th class="py-2.5 px-3 font-bold">No. Peserta</th>
+                <th class="py-2.5 px-3 font-bold">Mapel</th>
+                <th class="py-2.5 px-3 font-bold text-center text-emerald-400">Benar</th>
+                <th class="py-2.5 px-3 font-bold text-center text-rose-400">Salah</th>
+                <th class="py-2.5 px-3 font-bold text-center text-amber-400">Ragu/Kosong</th>
+                <th class="py-2.5 px-3 font-bold text-center">Nilai Akhir</th>
+                <th class="py-2.5 px-3 font-bold text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="gradebookBody" class="divide-y divide-slate-800/80"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <canvas id="alignmentProbeCanvas" width="160" height="240" class="hidden"></canvas>
+
+  <script>
+    /**
+     * ============================================================================
+     * SMART-OMR ENTERPRISE EDITION
+     * - 7-Burst Sobel Tenengrad Focus Selection
+     * - 3x3 Perspective Homography Bilinear Warping (420x840 Canonical Grid)
+     * - 7x11 1D Dark-Line Seam Snapping
+     * - Self-Calibrating Empty-Cell Letter Subtraction (A-E Median Signature)
+     * - X-Mark 4-Corner + Dual-Diagonal Topology & Scratched-Out Cancellation Detector
+     * ============================================================================
+     */
+    const OPTIONS = ['A', 'B', 'C', 'D', 'E'];
+    const TOTAL_COLS = 4;
+    const ROWS_PER_COL = 10;
+    const TOTAL_QUESTIONS = 40;
+    const OPTIONS_COUNT = 5;
+    const COL_RANGES = ['1–10', '11–20', '21–30', '31–40'];
+
+    // Reference Answer Key matching SMK Negeri 1 Gondang Sheet
+    const REFERENCE_KEY = [
+      'A','E','B','C','B','C','B','C','D','D', // 1-10
+      'E','B','E','E','D','E','C','A','E','D', // 11-20
+      'D','B','D','E','C','D','C','A','A','D', // 21-30
+      'E','C','B','C','A','C','C','D','A','A'  // 31-40
+    ];
+
+    const state = {
+      activeTab: 'camera', // 'camera' | 'photo' | 'audit'
+      activeCol: 0,
+      auditCol: 0,
+      autoColumnRouting: true,
+      colStatus: ['active', 'pending', 'pending', 'pending'],
+
+      // Camera Hardware & HUD State
+      stream: null,
+      videoDevices: [],
+      deviceIdx: -1,
+      facingMode: 'environment',
+      torchOn: false,
+      isBurstBusy: false,
+      autoBurstWhenAligned: false,
+      hudRafId: null,
+      probeIntervalId: null,
+      alignedHoldMs: 0,
+      lastProbeTs: 0,
+      alignmentOk: false,
+      distanceLabel: 'Mencari kolom LJK...',
+
+      // Photo Mode State
+      sheetImage: null,
+      sheetDrawRect: { dx: 0, dy: 0, dw: 0, dh: 0 },
+      photoColBoxes: [
+        { x: 0.064, y: 0.312, w: 0.202, h: 0.294 },
+        { x: 0.286, y: 0.312, w: 0.202, h: 0.294 },
+        { x: 0.508, y: 0.312, w: 0.202, h: 0.294 },
+        { x: 0.730, y: 0.312, w: 0.202, h: 0.294 }
+      ],
+      activeDrag: null,
+
+      // Per-Column Enterprise Inspection Data
+      inspections: [null, null, null, null],
+
+      // Answers & Gradebook
+      answerKey: [...REFERENCE_KEY],
+      answers: {},
+      gradebook: [],
+      audioCtx: null
+    };
+
+    /**
+     * ============================================================================
+     * INITIALIZATION & STORAGE
+     * ============================================================================
+     */
+    window.onload = function () {
+      loadStorage();
+      resetAnswersData();
+      renderColumnCards();
+      renderSideCameraAudit();
+      renderPhotoSummaryCards();
+      renderAuditView();
+      renderAnswerKeyMatrix();
+      renderGradebookTable();
+      recalculateScores();
+
+      try {
+        document.getElementById('camOpenNewTabLink').href = window.location.href;
+      } catch (e) {}
+
+      window.addEventListener('resize', () => {
+        if (state.activeTab === 'photo' && state.sheetImage) {
+          paintFullSheetCanvas();
+          renderInteractivePhotoBoxes();
+        }
+      });
+
+      setupPhotoBoxPointerHandlers();
+      initializeEnterpriseCamera();
+    };
+
+    function loadStorage() {
+      try {
+        const k = localStorage.getItem('smartomr_ent_key_v1');
+        if (k) {
+          const parsed = JSON.parse(k);
+          if (Array.isArray(parsed) && parsed.length === TOTAL_QUESTIONS) state.answerKey = parsed;
+        }
+        const g = localStorage.getItem('smartomr_ent_gb_v1');
+        if (g) {
+          const parsed = JSON.parse(g);
+          if (Array.isArray(parsed)) state.gradebook = parsed;
+        }
+      } catch (e) {}
+    }
+
+    function saveStorage() {
+      try {
+        localStorage.setItem('smartomr_ent_key_v1', JSON.stringify(state.answerKey));
+        localStorage.setItem('smartomr_ent_gb_v1', JSON.stringify(state.gradebook));
+      } catch (e) {}
+    }
+
+    function resetAnswersData() {
+      state.answers = {};
+      for (let q = 1; q <= TOTAL_QUESTIONS; q++) {
+        state.answers[q] = {
+          selected: null,
+          confidence: 0,
+          flagged: false,
+          flagReason: '',
+          netScores: [0, 0, 0, 0, 0]
+        };
+      }
+    }
+
+    /**
+     * ============================================================================
+     * TAB SWITCHING
+     * ============================================================================
+     */
+    function switchWorkflowTab(tab) {
+      state.activeTab = tab;
+
+      ['camera', 'photo', 'audit'].forEach((t) => {
+        const btn = document.getElementById(`tabBtn-${t}`);
+        if (!btn) return;
+        btn.className = t === tab
+          ? 'py-2 px-3 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow transition'
+          : 'py-2 px-3 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 font-bold text-xs flex items-center justify-center gap-1.5 transition';
+      });
+
+      const statusBar = document.getElementById('columnStatusSection');
+      const vCam = document.getElementById('view-camera');
+      const vPhoto = document.getElementById('view-photo');
+      const vAudit = document.getElementById('view-audit');
+
+      vCam.classList.add('hidden');
+      vPhoto.classList.add('hidden');
+      vAudit.classList.add('hidden');
+
+      if (tab === 'camera') {
+        statusBar.classList.remove('hidden');
+        vCam.classList.remove('hidden');
+        renderSideCameraAudit();
+        if (!state.stream) initializeEnterpriseCamera();
+      } else if (tab === 'photo') {
+        statusBar.classList.remove('hidden');
+        vPhoto.classList.remove('hidden');
+        stopCameraHardware();
+        renderPhotoSummaryCards();
+        if (state.sheetImage) {
+          paintFullSheetCanvas();
+          renderInteractivePhotoBoxes();
+        }
+      } else {
+        statusBar.classList.add('hidden');
+        vAudit.classList.remove('hidden');
+        stopCameraHardware();
+        renderAuditView();
+        renderAnswerKeyMatrix();
+        renderGradebookTable();
+        recalculateScores();
+      }
+    }
+
+    /**
+     * ============================================================================
+     * TAB 1: CAMERA ENGINE, HUD OVERLAY & 7-BURST TENENGRAD CAPTURE
+     * ============================================================================
+     */
+    function stopCameraHardware() {
+      if (state.hudRafId) {
+        cancelAnimationFrame(state.hudRafId);
+        state.hudRafId = null;
+      }
+      if (state.probeIntervalId) {
+        clearInterval(state.probeIntervalId);
+        state.probeIntervalId = null;
+      }
+      const video = document.getElementById('cameraVideo');
+      if (video) {
+        try {
+          video.pause();
+          video.srcObject = null;
+        } catch (e) {}
+      }
+      if (state.stream) {
+        try {
+          state.stream.getTracks().forEach((tr) => { try { tr.stop(); } catch (e) {} });
+        } catch (e) {}
+        state.stream = null;
+      }
+      state.torchOn = false;
+    }
+
+    async function initializeEnterpriseCamera(deviceId = null) {
+      stopCameraHardware();
+
+      const video = document.getElementById('cameraVideo');
+      const offline = document.getElementById('cameraOfflineOverlay');
+      const hud = document.getElementById('cameraLiveHud');
+      const errBox = document.getElementById('camErrorBox');
+
+      offline.classList.remove('hidden');
+      hud.classList.add('hidden');
+      errBox.classList.add('hidden');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        displayCameraError({ name: 'MediaDevicesUnsupported' });
+        return;
+      }
+
+      const constraintsList = [];
+      if (deviceId) {
+        constraintsList.push({ video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+        constraintsList.push({ video: { deviceId: { exact: deviceId } }, audio: false });
+      }
+      constraintsList.push({ video: { facingMode: { ideal: state.facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      constraintsList.push({ video: { facingMode: state.facingMode }, audio: false });
+      constraintsList.push({ video: true, audio: false });
+
+      let stream = null;
+      let lastError = null;
+      for (const c of constraintsList) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(c);
+          if (stream && stream.getVideoTracks().length > 0) break;
+        } catch (err) {
+          lastError = err;
+          if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') break;
+        }
+      }
+
+      if (!stream) {
+        displayCameraError(lastError || { name: 'CameraUnavailable' });
+        return;
+      }
+
+      try {
+        state.stream = stream;
+        video.srcObject = stream;
+        video.muted = true;
+
+        try {
+          const track = stream.getVideoTracks()[0];
+          const caps = track?.getCapabilities?.();
+          if (caps?.focusMode?.includes('continuous')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          }
+        } catch (e) {}
+
+        await video.play();
+        await new Promise((resolve) => {
+          if (video.videoWidth > 0) return resolve();
+          const t = setTimeout(resolve, 3500);
+          video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
+        });
+
+        offline.classList.add('hidden');
+        hud.classList.remove('hidden');
+
+        try {
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          state.videoDevices = devs.filter((d) => d.kind === 'videoinput');
+          const curId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+          if (curId) {
+            const idx = state.videoDevices.findIndex((d) => d.deviceId === curId);
+            if (idx !== -1) state.deviceIdx = idx;
+          }
+          if (state.videoDevices.length > 1 && state.deviceIdx >= 0) {
+            document.getElementById('camLensName').textContent = `Lensa ${state.deviceIdx + 1}/${state.videoDevices.length}`;
+          }
+        } catch (e) {}
+
+        startCameraHudLoop();
+        startDistanceAlignmentMonitor();
+      } catch (err) {
+        displayCameraError(err);
+      }
+    }
+
+    async function switchCameraLens() {
+      if (state.videoDevices.length > 1) {
+        const next = (state.deviceIdx + 1) % state.videoDevices.length;
+        state.deviceIdx = next;
+        await initializeEnterpriseCamera(state.videoDevices[next].deviceId);
+        return;
+      }
+      state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+      await initializeEnterpriseCamera();
+    }
+
+    async function toggleCameraTorch() {
+      if (!state.stream) return;
+      const track = state.stream.getVideoTracks()[0];
+      if (!track?.applyConstraints) return;
+      try {
+        state.torchOn = !state.torchOn;
+        await track.applyConstraints({ advanced: [{ torch: state.torchOn }] });
+        document.getElementById('btnCamTorch').className = state.torchOn
+          ? 'px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 border border-amber-300 text-[11px] font-black shadow'
+          : 'px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-300 text-[11px] font-extrabold shadow';
+      } catch (e) {
+        state.torchOn = false;
+        showToast('Senter tidak didukung pada lensa kamera ini.', 'warning');
+      }
+    }
+
+    function displayCameraError(err) {
+      const offline = document.getElementById('cameraOfflineOverlay');
+      const errBox = document.getElementById('camErrorBox');
+      const openLink = document.getElementById('camOpenNewTabLink');
+      offline.classList.remove('hidden');
+      errBox.classList.remove('hidden');
+
+      const inIframe = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+      document.getElementById('camOfflineTitle').textContent = 'Kamera Tidak Dapat Diakses';
+      document.getElementById('camErrorHeader').textContent = `Status: ${err?.name || 'Akses Diblokir'}`;
+      document.getElementById('camErrorBody').innerHTML = inIframe
+        ? 'Pratinjau ini berada di dalam frame terisolasi. Klik <strong>Buka Aplikasi di Tab Baru</strong> atau gunakan menu <strong>2. Scan Foto / Lembar Utuh</strong>.'
+        : 'Berikan izin kamera pada browser Anda, lalu ketuk <strong>Aktifkan Kamera</strong>.';
+      if (inIframe) openLink.classList.remove('hidden');
+    }
+
+    function getGuideFrameNorm() {
+      return { x: 0.25, y: 0.13, w: 0.50, h: 0.74 };
+    }
+
+    function startCameraHudLoop() {
+      const loop = () => {
+        if (state.activeTab !== 'camera' || !state.stream) return;
+        renderCameraHudCanvas();
+        state.hudRafId = requestAnimationFrame(loop);
+      };
+      state.hudRafId = requestAnimationFrame(loop);
+    }
+
+    function renderCameraHudCanvas() {
+      const canvas = document.getElementById('cameraHudCanvas');
+      const box = document.getElementById('cameraViewport');
+      if (!canvas || !box) return;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const vw = box.clientWidth || 360;
+      const vh = box.clientHeight || 480;
+      if (canvas.width !== Math.round(vw * dpr) || canvas.height !== Math.round(vh * dpr)) {
+        canvas.width = Math.round(vw * dpr);
+        canvas.height = Math.round(vh * dpr);
+      }
+
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, vw, vh);
+
+      const g = getGuideFrameNorm();
+      const bx = g.x * vw;
+      const by = g.y * vh;
+      const bw = g.w * vw;
+      const bh = g.h * vh;
+
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.36)';
+      ctx.fillRect(0, 0, vw, by);
+      ctx.fillRect(0, by + bh, vw, vh - (by + bh));
+      ctx.fillRect(0, by, bx, bh);
+      ctx.fillRect(bx + bw, by, vw - (bx + bw), bh);
+
+      const numW = bw * 0.182;
+      const optW = (bw - numW) / OPTIONS_COUNT;
+      const rowH = bh / ROWS_PER_COL;
+      const startQ = state.activeCol * ROWS_PER_COL + 1;
+
+      ctx.strokeStyle = state.alignmentOk ? 'rgba(16, 185, 129, 0.55)' : 'rgba(56, 189, 248, 0.42)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bx + numW, by);
+      ctx.lineTo(bx + numW, by + bh);
+      for (let o = 1; o < OPTIONS_COUNT; o++) {
+        const vx = bx + numW + o * optW;
+        ctx.moveTo(vx, by);
+        ctx.lineTo(vx, by + bh);
+      }
+      for (let r = 1; r < ROWS_PER_COL; r++) {
+        const ry = by + r * rowH;
+        ctx.moveTo(bx, ry);
+        ctx.lineTo(bx + bw, ry);
+      }
+      ctx.stroke();
+
+      ctx.font = `800 ${Math.max(10, Math.round(rowH * 0.40))}px Inter, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const ry = by + r * rowH;
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.58)';
+        ctx.fillRect(bx + 1, ry + 1, numW - 2, rowH - 2);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(`${startQ + r}.`, bx + numW / 2, ry + rowH / 2);
+      }
+
+      const strokeCol = state.isBurstBusy ? '#38bdf8' : state.alignmentOk ? '#10b981' : '#f59e0b';
+      ctx.strokeStyle = strokeCol;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(bx, by, bw, bh);
+
+      const cLen = 18;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(bx, by + cLen); ctx.lineTo(bx, by); ctx.lineTo(bx + cLen, by);
+      ctx.moveTo(bx + bw - cLen, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cLen);
+      ctx.moveTo(bx, by + bh - cLen); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cLen, by + bh);
+      ctx.moveTo(bx + bw - cLen, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cLen);
+      ctx.stroke();
+
+      const stripY = Math.min(vh - 20, by + bh + 3);
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+      ctx.fillRect(bx, stripY, bw, 17);
+      ctx.font = '800 10px Inter, sans-serif';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('No', bx + numW / 2, stripY + 8.5);
+      ctx.fillStyle = '#f8fafc';
+      for (let o = 0; o < OPTIONS_COUNT; o++) {
+        ctx.fillText(OPTIONS[o], bx + numW + (o + 0.5) * optW, stripY + 8.5);
+      }
+
+      ctx.restore();
+    }
+
+    function toggleAutoBurstWhenAligned() {
+      state.autoBurstWhenAligned = !state.autoBurstWhenAligned;
+      state.alignedHoldMs = 0;
+      const btn = document.getElementById('btnAutoTriggerMode');
+      btn.textContent = state.autoBurstWhenAligned ? '⏱️ Auto-Scan Saat Pas: ON' : '⏱️ Auto-Scan Saat Pas: OFF';
+      btn.className = state.autoBurstWhenAligned
+        ? 'px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-[11px] font-extrabold text-emerald-300 transition'
+        : 'px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-extrabold text-slate-300 transition';
+    }
+
+    function startDistanceAlignmentMonitor() {
+      if (state.probeIntervalId) clearInterval(state.probeIntervalId);
+      state.lastProbeTs = performance.now();
+
+      state.probeIntervalId = setInterval(() => {
+        if (state.activeTab !== 'camera' || !state.stream || state.isBurstBusy) return;
+        const video = document.getElementById('cameraVideo');
+        if (!video || !video.videoWidth) return;
+
+        const pCanvas = document.getElementById('alignmentProbeCanvas');
+        const pw = pCanvas.width;
+        const ph = pCanvas.height;
+        const ctx = pCanvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, pw, ph);
+        const rgba = ctx.getImageData(0, 0, pw, ph).data;
+
+        const lum = new Uint8Array(pw * ph);
+        for (let i = 0; i < pw * ph; i++) {
+          const p = i << 2;
+          lum[i] = (77 * rgba[p] + 150 * rgba[p + 1] + 29 * rgba[p + 2]) >> 8;
+        }
+
+        // Measure vertical column span inside center region
+        const x0 = Math.floor(pw * 0.24);
+        const x1 = Math.floor(pw * 0.76);
+        let topRow = -1;
+        let botRow = -1;
+        for (let y = Math.floor(ph * 0.05); y < Math.floor(ph * 0.95); y++) {
+          let dark = 0;
+          const off = y * pw;
+          for (let x = x0; x < x1; x++) if (lum[off + x] < 142) dark++;
+          if (dark / (x1 - x0) > 0.34) {
+            if (topRow === -1) topRow = y;
+            botRow = y;
+          }
+        }
+
+        const pill = document.getElementById('hudAlignmentPill');
+        const now = performance.now();
+        const dt = now - state.lastProbeTs;
+        state.lastProbeTs = now;
+
+        if (topRow === -1 || botRow <= topRow) {
+          state.alignmentOk = false;
+          state.alignedHoldMs = 0;
+          pill.textContent = 'Arahkan 1 kolom LJK ke bingkai panduan (~12 cm)';
+          pill.className = 'px-3 py-1.5 rounded-xl bg-slate-950/85 backdrop-blur border border-slate-700 text-slate-300 text-[11px] font-bold text-center shadow';
+          return;
+        }
+
+        const fillRatio = (botRow - topRow) / ph;
+        if (fillRatio < 0.56) {
+          state.alignmentOk = false;
+          state.alignedHoldMs = 0;
+          pill.textContent = 'TERLALU JAUH — Dekatkan kamera (±12 cm dari kertas)';
+          pill.className = 'px-3 py-1.5 rounded-xl bg-rose-950/90 backdrop-blur border border-rose-500/60 text-rose-200 text-[11px] font-extrabold text-center shadow';
+        } else if (fillRatio > 0.88) {
+          state.alignmentOk = false;
+          state.alignedHoldMs = 0;
+          pill.textContent = 'TERLALU DEKAT — Mundurkan kamera agar 10 baris utuh';
+          pill.className = 'px-3 py-1.5 rounded-xl bg-amber-950/90 backdrop-blur border border-amber-500/60 text-amber-200 text-[11px] font-extrabold text-center shadow';
+        } else {
+          state.alignmentOk = true;
+          pill.textContent = 'JARAK PAS ~12cm ✓ • Siap Pindai 7-Burst';
+          pill.className = 'px-3 py-1.5 rounded-xl bg-emerald-950/90 backdrop-blur border border-emerald-400/70 text-emerald-200 text-[11px] font-black text-center shadow';
+
+          if (state.autoBurstWhenAligned) {
+            state.alignedHoldMs += dt;
+            if (state.alignedHoldMs >= 950) {
+              state.alignedHoldMs = 0;
+              executeSevenBurstCapture();
+            }
+          }
+        }
+      }, 110);
+    }
+
+    /**
+     * ============================================================================
+     * 1. MULTI-FRAME 7-BURST SOBEL TENENGRAD FOCUS SELECTION
+     * ============================================================================
+     */
+    async function executeSevenBurstCapture() {
+      if (state.isBurstBusy) return;
+      const video = document.getElementById('cameraVideo');
+      const container = document.getElementById('cameraViewport');
+      if (!video || !video.videoWidth || video.readyState < 2) {
+        showToast('Kamera belum siap. Aktifkan kamera atau gunakan Tab 2 (Scan Foto Utuh).', 'warning');
+        return;
+      }
+
+      state.isBurstBusy = true;
+      const overlay = document.getElementById('burstProcessingOverlay');
+      const heading = document.getElementById('burstStageHeading');
+      const detail = document.getElementById('burstStageDetail');
+      const bar = document.getElementById('burstStageProgress');
+
+      overlay.classList.remove('hidden');
+      heading.textContent = 'Tahap 1/4: Mengambil 7 frame resolusi tinggi...';
+      detail.textContent = 'Menilai ketajaman fokus Sobel Tenengrad (~750ms)';
+      bar.style.width = '15%';
+
+      try {
+        const vw = container.clientWidth || 360;
+        const vh = container.clientHeight || 480;
+        const srcW = video.videoWidth;
+        const srcH = video.videoHeight;
+        const coverScale = Math.max(vw / srcW, vh / srcH);
+        const visSrcW = vw / coverScale;
+        const visSrcH = vh / coverScale;
+        const visSrcX = (srcW - visSrcW) / 2;
+        const visSrcY = (srcH - visSrcH) / 2;
+
+        const g = getGuideFrameNorm();
+        // +10% margin around guide box so outer 4 corners are completely captured for homography
+        const padX = g.w * 0.10;
+        const padY = g.h * 0.06;
+        const sx = Math.max(0, visSrcX + (g.x - padX) * visSrcW);
+        const sy = Math.max(0, visSrcY + (g.y - padY) * visSrcH);
+        const sw = Math.min(srcW - sx, (g.w + padX * 2) * visSrcW);
+        const sh = Math.min(srcH - sy, (g.h + padY * 2) * visSrcH);
+
+        // Capture 7 frames over ~750ms
+        const burst = [];
+        for (let i = 0; i < 7; i++) {
+          const fc = document.createElement('canvas');
+          fc.width = 460;
+          fc.height = 920;
+          const fctx = fc.getContext('2d', { willReadFrequently: true });
+          fctx.drawImage(video, sx, sy, sw, sh, 0, 0, fc.width, fc.height);
+
+          const tenengrad = computeSobelTenengradScore(fctx, fc.width, fc.height);
+          burst.push({ canvas: fc, tenengrad });
+          bar.style.width = `${15 + (i + 1) * 7}%`;
+
+          if (i < 6) {
+            await new Promise((r) => setTimeout(r, 110));
+          }
+        }
+
+        // Select top 4 sharpest frames by Sobel Tenengrad gradient energy
+        burst.sort((a, b) => b.tenengrad - a.tenengrad);
+        const topFour = burst.slice(0, 4);
+
+        heading.textContent = 'Tahap 2/4: Rektifikasi Homografi 3×3 (420×840)...';
+        detail.textContent = `4 frame tertajam dipilih (Tenengrad: ${Math.round(topFour[0].tenengrad)})`;
+        bar.style.width = '74%';
+        await new Promise((r) => setTimeout(r, 35));
+
+        const frameResults = topFour.map((f) =>
+          runEnterpriseColumnPipeline(f.canvas, state.activeCol, state.autoColumnRouting)
+        );
+
+        // Resolve column index via consensus vote if auto-routing is active
+        let targetCol = state.activeCol;
+        if (state.autoColumnRouting) {
+          const votes = [0, 0, 0, 0];
+          frameResults.forEach((res) => {
+            if (res.detectedColIdx >= 0 && res.detectedColIdx < 4) votes[res.detectedColIdx]++;
+          });
+          let bestC = -1;
+          let maxV = 0;
+          for (let c = 0; c < 4; c++) {
+            if (votes[c] > maxV) { maxV = votes[c]; bestC = c; }
+          }
+          if (bestC !== -1 && maxV >= 2) targetCol = bestC;
+        }
+
+        heading.textContent = 'Tahap 3/4: Kalibrasi Huruf (A–E) & Konsensus 4-Frame...';
+        detail.textContent = `Menghilangkan profil huruf cetak pada Kolom ${targetCol + 1} (${COL_RANGES[targetCol]})`;
+        bar.style.width = '92%';
+        await new Promise((r) => setTimeout(r, 35));
+
+        const consensusRows = fuseFourFrameEnterpriseConsensus(frameResults);
+        const inspectionObj = {
+          colIdx: targetCol,
+          canonicalCanvas: frameResults[0].canonicalCanvas,
+          vLines: frameResults[0].vLines,
+          hLines: frameResults[0].hLines,
+          letterBaseline: frameResults[0].letterBaseline,
+          rows: consensusRows,
+          tenengrad: Math.round(topFour[0].tenengrad),
+          sourceLabel: '7-Burst Tenengrad (Top-4)'
+        };
+
+        commitColumnInspection(targetCol, inspectionObj);
+        playConfirmationChime();
+        showToast(`Kolom ${targetCol + 1} (No. ${COL_RANGES[targetCol]}) berhasil dipindai!`, 'success');
+      } finally {
+        state.isBurstBusy = false;
+        overlay.classList.add('hidden');
+        bar.style.width = '0%';
+      }
+    }
+
+    function computeSobelTenengradScore(ctx, w, h) {
+      const rgba = ctx.getImageData(0, 0, w, h).data;
+      const lum = new Float32Array(w * h);
+      for (let i = 0; i < w * h; i++) {
+        const p = i << 2;
+        lum[i] = 0.299 * rgba[p] + 0.587 * rgba[p + 1] + 0.114 * rgba[p + 2];
+      }
+      let energySum = 0;
+      let count = 0;
+      for (let y = 1; y < h - 1; y += 2) {
+        const rPrev = (y - 1) * w;
+        const rCurr = y * w;
+        const rNext = (y + 1) * w;
+        for (let x = 1; x < w - 1; x += 2) {
+          const gx = -lum[rPrev + x - 1] + lum[rPrev + x + 1]
+                     - 2 * lum[rCurr + x - 1] + 2 * lum[rCurr + x + 1]
+                     - lum[rNext + x - 1] + lum[rNext + x + 1];
+          const gy = -lum[rPrev + x - 1] - 2 * lum[rPrev + x] - lum[rPrev + x + 1]
+                     + lum[rNext + x - 1] + 2 * lum[rNext + x] + lum[rNext + x + 1];
+          energySum += gx * gx + gy * gy;
+          count++;
+        }
+      }
+      return energySum / Math.max(1, count);
+    }
+
+    function fuseFourFrameEnterpriseConsensus(results) {
+      const fused = [];
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const tally = {};
+        let flagVotes = 0;
+        let reason = '';
+        const avgNetScores = [0, 0, 0, 0, 0];
+
+        results.forEach((res) => {
+          const row = res.rows[r];
+          const key = row.selected || 'BLANK';
+          if (!tally[key]) tally[key] = { count: 0, confSum: 0 };
+          tally[key].count++;
+          tally[key].confSum += row.confidence;
+          if (row.flagged) {
+            flagVotes++;
+            if (row.flagReason) reason = row.flagReason;
+          }
+          for (let o = 0; o < OPTIONS_COUNT; o++) {
+            avgNetScores[o] += (row.netScores[o] || 0) / results.length;
+          }
+        });
+
+        let winner = 'BLANK';
+        let bestCnt = -1;
+        let bestConf = 0;
+        Object.keys(tally).forEach((k) => {
+          const avgC = tally[k].confSum / tally[k].count;
+          if (tally[k].count > bestCnt || (tally[k].count === bestCnt && avgC > bestConf)) {
+            bestCnt = tally[k].count;
+            bestConf = avgC;
+            winner = k;
+          }
+        });
+
+        const selected = winner === 'BLANK' ? null : winner;
+        const consensusRatio = bestCnt / results.length;
+        const confidence = Math.min(99, Math.round(bestConf * (0.86 + 0.14 * consensusRatio)));
+        const flagged = flagVotes >= 2 || consensusRatio < 0.75 || (selected !== null && confidence < 70);
+
+        fused.push({
+          selected,
+          confidence: selected ? confidence : Math.max(88, confidence),
+          flagged,
+          flagReason: flagged ? (reason || 'Konsensus frame berbeda') : '',
+          netScores: avgNetScores.map((v) => Math.round(v * 10) / 10)
+        });
+      }
+      return fused;
+    }
+
+    /**
+     * ============================================================================
+     * 2, 3, 4. ENTERPRISE CORE VISION PIPELINE:
+     * - 4-Corner Detection & 3x3 Perspective Homography Bilinear Warp (420x840)
+     * - 7x11 1D Dark-Line Seam Snapping
+     * - Self-Calibrating Empty-Cell Letter Subtraction (A-E Median Signature)
+     * - X-Mark 4-Corner + Dual-Diagonal Topology & Scratched-Out Cancellation Detector
+     * ============================================================================
+     */
+    function runEnterpriseColumnPipeline(rawCanvas, fallbackColIdx, detectColNumber = true) {
+      const rw = rawCanvas.width;
+      const rh = rawCanvas.height;
+      const rCtx = rawCanvas.getContext('2d', { willReadFrequently: true });
+      const rawRgba = rCtx.getImageData(0, 0, rw, rh).data;
+
+      // Convert raw crop to grayscale & adaptive local ink map
+      const rawLum = new Uint8Array(rw * rh);
+      for (let i = 0; i < rw * rh; i++) {
+        const p = i << 2;
+        rawLum[i] = (77 * rawRgba[p] + 150 * rawRgba[p + 1] + 29 * rawRgba[p + 2]) >> 8;
+      }
+
+      const rawInk = computeLocalNormalizedInk(rawLum, rw, rh, 26);
+
+      // Detect 4 outer corners of the column table for 3x3 Perspective Homography
+      const quad = detectOuterTableQuad(rawInk, rw, rh);
+
+      // Warp into canonical 420x840 rectangular grid using 3x3 Homography + Bilinear Interpolation
+      const CW = 420;
+      const CH = 840;
+      const canonicalCanvas = warpPerspectiveToCanonical(rawCanvas, quad, CW, CH);
+      const cCtx = canonicalCanvas.getContext('2d', { willReadFrequently: true });
+      const cRgba = cCtx.getImageData(0, 0, CW, CH).data;
+
+      const cLum = new Uint8Array(CW * CH);
+      for (let i = 0; i < CW * CH; i++) {
+        const p = i << 2;
+        cLum[i] = (77 * cRgba[p] + 150 * cRgba[p + 1] + 29 * cRgba[p + 2]) >> 8;
+      }
+      const normInk = computeLocalNormalizedInk(cLum, CW, CH, 30);
+
+      // Snap 7 vertical seams & 11 horizontal seams via 1D dark-line projection profiles
+      const vProj = new Float32Array(CW);
+      for (let x = 0; x < CW; x++) {
+        let sum = 0;
+        for (let y = Math.floor(CH * 0.03); y < Math.floor(CH * 0.97); y++) sum += normInk[y * CW + x];
+        vProj[x] = sum / (CH * 0.94);
+      }
+
+      const hProj = new Float32Array(CH);
+      for (let y = 0; y < CH; y++) {
+        let sum = 0;
+        const off = y * CW;
+        for (let x = Math.floor(CW * 0.03); x < Math.floor(CW * 0.97); x++) sum += normInk[off + x];
+        hProj[y] = sum / (CW * 0.94);
+      }
+
+      const vLines = new Float32Array(7);
+      vLines[0] = snapSeam1D(vProj, 0, 24, 4);
+      vLines[6] = snapSeam1D(vProj, CW - 25, CW - 1, CW - 5);
+
+      const gridW = Math.max(200, vLines[6] - vLines[0]);
+      const numRatio = 0.182;
+      const optRatio = (1.0 - numRatio) / OPTIONS_COUNT;
+      for (let g = 1; g <= 5; g++) {
+        const expX = Math.round(vLines[0] + gridW * (numRatio + (g - 1) * optRatio));
+        const tol = Math.max(6, Math.round(gridW * 0.04));
+        vLines[g] = snapSeam1D(vProj, expX - tol, expX + tol, expX);
+      }
+
+      const hLines = new Float32Array(ROWS_PER_COL + 1);
+      hLines[0] = snapSeam1D(hProj, 0, 24, 4);
+      hLines[ROWS_PER_COL] = snapSeam1D(hProj, CH - 25, CH - 1, CH - 5);
+      const gridH = Math.max(400, hLines[ROWS_PER_COL] - hLines[0]);
+      for (let r = 1; r < ROWS_PER_COL; r++) {
+        const expY = Math.round(hLines[0] + (gridH * r) / ROWS_PER_COL);
+        const tol = Math.max(6, Math.round((gridH / ROWS_PER_COL) * 0.20));
+        hLines[r] = snapSeam1D(hProj, expY - tol, expY + tol, expY);
+      }
+
+      // Auto-detect column identity (1-10 vs 11-20 vs 21-30 vs 31-40)
+      let detectedColIdx = fallbackColIdx;
+      if (detectColNumber) {
+        const inferred = inferColumnIdentityFromCanonical(normInk, CW, CH, vLines, hLines);
+        if (inferred !== -1) detectedColIdx = inferred;
+      }
+
+      // Extract raw topological features for all 10 rows x 5 options (14% inner margin)
+      const rawCellGrid = [];
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const y0 = hLines[r];
+        const y1 = hLines[r + 1];
+        const rhCell = Math.max(16, y1 - y0);
+        const cy0 = Math.floor(y0 + rhCell * 0.14);
+        const cy1 = Math.ceil(y1 - rhCell * 0.14);
+        const innerH = Math.max(8, cy1 - cy0);
+
+        const rowCells = [];
+        for (let o = 0; o < OPTIONS_COUNT; o++) {
+          const x0 = vLines[o + 1];
+          const x1 = vLines[o + 2];
+          const cwCell = Math.max(16, x1 - x0);
+          const cx0 = Math.floor(x0 + cwCell * 0.14);
+          const cx1 = Math.ceil(x1 - cwCell * 0.14);
+          const innerW = Math.max(8, cx1 - cx0);
+
+          let cTL = 0, cTR = 0, cBL = 0, cBR = 0;
+          let nTL = 0, nTR = 0, nBL = 0, nBR = 0;
+          let diag1Sum = 0, diag1Cnt = 0;
+          let diag2Sum = 0, diag2Cnt = 0;
+          let totalInk = 0, totalPx = 0;
+          let darkStrokePx = 0;
+
+          for (let py = cy0; py < cy1; py++) {
+            const pOff = py * CW;
+            const ny = (py - cy0) / innerH;
+            for (let px = cx0; px < cx1; px++) {
+              const nx = (px - cx0) / innerW;
+              const ink = normInk[pOff + px];
+
+              totalInk += ink;
+              totalPx++;
+              if (ink > 0.28) darkStrokePx++;
+
+              // 4 Corner Quadrants
+              if (nx <= 0.38 && ny <= 0.38) { cTL += ink; nTL++; }
+              else if (nx >= 0.62 && ny <= 0.38) { cTR += ink; nTR++; }
+              else if (nx <= 0.38 && ny >= 0.62) { cBL += ink; nBL++; }
+              else if (nx >= 0.62 && ny >= 0.62) { cBR += ink; nBR++; }
+
+              // Main Diagonal (\) and Anti-Diagonal (/) corridors
+              if (Math.abs(nx - ny) <= 0.17) { diag1Sum += ink; diag1Cnt++; }
+              if (Math.abs(nx + ny - 1.0) <= 0.17) { diag2Sum += ink; diag2Cnt++; }
+            }
+          }
+
+          const corners = [
+            nTL > 0 ? cTL / nTL : 0,
+            nTR > 0 ? cTR / nTR : 0,
+            nBL > 0 ? cBL / nBL : 0,
+            nBR > 0 ? cBR / nBR : 0
+          ].sort((a, b) => b - a);
+
+          const cornerDensity = (corners[0] + corners[1] + corners[2]) / 3;
+          const d1 = diag1Cnt > 0 ? diag1Sum / diag1Cnt : 0;
+          const d2 = diag2Cnt > 0 ? diag2Sum / diag2Cnt : 0;
+          const dualDiag = Math.sqrt(Math.max(0, d1 * d2));
+          const meanDensity = totalPx > 0 ? totalInk / totalPx : 0;
+          const fillRatio = totalPx > 0 ? darkStrokePx / totalPx : 0;
+
+          // Raw composite energy before subtracting printed-letter baseline
+          const rawComposite = (cornerDensity * 0.44 + dualDiag * 0.42 + meanDensity * 0.14) * 100;
+
+          rowCells.push({
+            letter: OPTIONS[o],
+            rawComposite,
+            cornerDensity: cornerDensity * 100,
+            dualDiag: dualDiag * 100,
+            fillRatio
+          });
+        }
+        rawCellGrid.push(rowCells);
+      }
+
+      // SELF-CALIBRATING EMPTY-CELL LETTER SUBTRACTION (100% Printed 'A-E' Elimination)
+      // Across 10 rows, at least 7-9 cells in each option column (A, B, C, D, E) are unmarked printed letters.
+      // Taking the median of the lowest 6 cells in each option column yields the exact printed-letter signature!
+      const letterBaseline = new Float32Array(OPTIONS_COUNT);
+      for (let o = 0; o < OPTIONS_COUNT; o++) {
+        const colValues = [];
+        for (let r = 0; r < ROWS_PER_COL; r++) {
+          colValues.push(rawCellGrid[r][o].rawComposite);
+        }
+        colValues.sort((a, b) => a - b);
+        // Median of the 6 quietest cells for this exact printed letter ('A', 'B', 'C', 'D', or 'E')
+        letterBaseline[o] = (colValues[2] + colValues[3]) * 0.5;
+      }
+
+      // Score each row after subtracting the exact per-letter printed signature
+      const finalRows = [];
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const netScores = new Float32Array(OPTIONS_COUNT);
+        const candidates = [];
+
+        for (let o = 0; o < OPTIONS_COUNT; o++) {
+          const cell = rawCellGrid[r][o];
+          const netX = Math.max(0, cell.rawComposite - letterBaseline[o]);
+          netScores[o] = Math.round(netX * 10) / 10;
+          candidates.push({
+            optIdx: o,
+            letter: cell.letter,
+            netX,
+            fillRatio: cell.fillRatio,
+            dualDiag: cell.dualDiag
+          });
+        }
+
+        // Separate valid 'X' marks from scratched-out / scribbled cancellations (fillRatio > 0.58)
+        const validCandidates = [];
+        const scribbledCandidates = [];
+        candidates.forEach((c) => {
+          if (c.fillRatio > 0.58 && c.netX >= 5.0) {
+            scribbledCandidates.push(c);
+          } else {
+            validCandidates.push(c);
+          }
+        });
+
+        validCandidates.sort((a, b) => b.netX - a.netX);
+        const top1 = validCandidates[0];
+        const top2 = validCandidates[1];
+
+        const activationFloor = 3.8;
+        if (top1 && top1.netX >= activationFloor) {
+          const margin = top2 ? top1.netX - top2.netX : top1.netX;
+          const isDouble = top2 && top2.netX >= Math.max(activationFloor * 0.95, top1.netX * 0.60);
+          const hasScratchedCorrection = scribbledCandidates.length > 0;
+
+          let conf = 62 + Math.min(25, top1.netX * 1.35) + Math.min(12, margin * 1.1);
+          if (isDouble) conf *= 0.72;
+          conf = Math.max(48, Math.min(99, Math.round(conf)));
+
+          let flagged = false;
+          let flagReason = '';
+          if (isDouble) {
+            flagged = true;
+            flagReason = `Tanda ganda (${top1.letter} & ${top2.letter})`;
+          } else if (hasScratchedCorrection) {
+            // Valid X selected while scratched-out correction on another letter is detected
+            flagged = true;
+            flagReason = `Koreksi coretan pada ${scribbledCandidates[0].letter} → ${top1.letter}`;
+          } else if (conf < 72) {
+            flagged = true;
+            flagReason = 'Goresan silang tipis';
+          }
+
+          finalRows.push({
+            selected: top1.letter,
+            confidence: conf,
+            flagged,
+            flagReason,
+            netScores: Array.from(netScores)
+          });
+        } else if (scribbledCandidates.length > 0) {
+          // Only scratched-out mark found without a clean replacement X
+          scribbledCandidates.sort((a, b) => b.netX - a.netX);
+          finalRows.push({
+            selected: scribbledCandidates[0].letter,
+            confidence: 52,
+            flagged: true,
+            flagReason: 'Coretan pembatalan tanpa pengganti',
+            netScores: Array.from(netScores)
+          });
+        } else {
+          finalRows.push({
+            selected: null,
+            confidence: 95,
+            flagged: false,
+            flagReason: '',
+            netScores: Array.from(netScores)
+          });
+        }
+      }
+
+      return {
+        detectedColIdx,
+        canonicalCanvas,
+        vLines,
+        hLines,
+        letterBaseline: Array.from(letterBaseline).map((v) => Math.round(v * 10) / 10),
+        rows: finalRows
+      };
+    }
+
+    function computeLocalNormalizedInk(lum, w, h, radius) {
+      const integ = new Uint32Array((w + 1) * (h + 1));
+      for (let y = 0; y < h; y++) {
+        let rSum = 0;
+        const rOff = y * w;
+        const iOff = (y + 1) * (w + 1);
+        const pOff = y * (w + 1);
+        for (let x = 0; x < w; x++) {
+          rSum += lum[rOff + x];
+          integ[iOff + x + 1] = integ[pOff + x + 1] + rSum;
+        }
+      }
+
+      const ink = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) {
+        const y0 = Math.max(0, y - radius);
+        const y1 = Math.min(h - 1, y + radius);
+        const rOff = y * w;
+        for (let x = 0; x < w; x++) {
+          const x0 = Math.max(0, x - radius);
+          const x1 = Math.min(w - 1, x + radius);
+          const area = (x1 - x0 + 1) * (y1 - y0 + 1);
+          const sum = integ[(y1 + 1) * (w + 1) + (x1 + 1)]
+                    - integ[y0 * (w + 1) + (x1 + 1)]
+                    - integ[(y1 + 1) * (w + 1) + x0]
+                    + integ[y0 * (w + 1) + x0];
+          const bg = Math.max(40, sum / area);
+          const ratio = lum[rOff + x] / bg;
+          ink[rOff + x] = ratio < 0.94 ? Math.min(1.0, (0.94 - ratio) * 2.3) : 0.0;
+        }
+      }
+      return ink;
+    }
+
+    function detectOuterTableQuad(ink, w, h) {
+      // Find top & bottom horizontal table borders first
+      const hProj = new Float32Array(h);
+      for (let y = 0; y < h; y++) {
+        let s = 0;
+        const off = y * w;
+        for (let x = Math.floor(w * 0.08); x < Math.floor(w * 0.92); x++) s += ink[off + x];
+        hProj[y] = s / (w * 0.84);
+      }
+
+      const topY = snapSeam1D(hProj, 0, Math.floor(h * 0.16), Math.floor(h * 0.05));
+      const botY = snapSeam1D(hProj, Math.floor(h * 0.84), h - 1, Math.floor(h * 0.95));
+
+      // Scan top strip (top 22% of table) and bottom strip (bottom 22% of table) separately
+      // so tilted/trapezoidal perspective corners (TL, TR, BR, BL) are captured accurately!
+      const stripH = Math.max(16, Math.floor((botY - topY) * 0.22));
+      const vTop = new Float32Array(w);
+      const vBot = new Float32Array(w);
+
+      for (let x = 0; x < w; x++) {
+        let sT = 0;
+        for (let y = topY; y < Math.min(h, topY + stripH); y++) sT += ink[y * w + x];
+        vTop[x] = sT / stripH;
+
+        let sB = 0;
+        for (let y = Math.max(0, botY - stripH); y <= botY; y++) sB += ink[y * w + x];
+        vBot[x] = sB / stripH;
+      }
+
+      const tlX = snapSeam1D(vTop, 0, Math.floor(w * 0.22), Math.floor(w * 0.08));
+      const trX = snapSeam1D(vTop, Math.floor(w * 0.78), w - 1, Math.floor(w * 0.92));
+      const blX = snapSeam1D(vBot, 0, Math.floor(w * 0.22), Math.floor(w * 0.08));
+      const brX = snapSeam1D(vBot, Math.floor(w * 0.78), w - 1, Math.floor(w * 0.92));
+
+      return {
+        tl: { x: tlX, y: topY },
+        tr: { x: trX, y: topY },
+        br: { x: brX, y: botY },
+        bl: { x: blX, y: botY }
+      };
+    }
+
+    /**
+     * 3x3 Perspective Homography Solver & Bilinear Warper
+     * Maps canonical destination rectangle [0..dstW, 0..dstH] -> source quadrilateral (tl, tr, br, bl)
+     */
+    function warpPerspectiveToCanonical(srcCanvas, quad, dstW, dstH) {
+      const dstPts = [
+        { x: 0, y: 0 },
+        { x: dstW, y: 0 },
+        { x: dstW, y: dstH },
+        { x: 0, y: dstH }
+      ];
+      const srcPts = [quad.tl, quad.tr, quad.br, quad.bl];
+      const H = computeHomography3x3(dstPts, srcPts);
+
+      const sw = srcCanvas.width;
+      const sh = srcCanvas.height;
+      const srcData = srcCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, sw, sh).data;
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = dstW;
+      outCanvas.height = dstH;
+      const outCtx = outCanvas.getContext('2d');
+      const outImg = outCtx.createImageData(dstW, dstH);
+      const dstData = outImg.data;
+
+      for (let y = 0; y < dstH; y++) {
+        for (let x = 0; x < dstW; x++) {
+          const denom = H[6] * x + H[7] * y + H[8];
+          const sx = (H[0] * x + H[1] * y + H[2]) / denom;
+          const sy = (H[3] * x + H[4] * y + H[5]) / denom;
+
+          const x0 = Math.max(0, Math.min(sw - 2, Math.floor(sx)));
+          const y0 = Math.max(0, Math.min(sh - 2, Math.floor(sy)));
+          const fx = Math.max(0, Math.min(1, sx - x0));
+          const fy = Math.max(0, Math.min(1, sy - y0));
+
+          const i00 = (y0 * sw + x0) << 2;
+          const i10 = (y0 * sw + x0 + 1) << 2;
+          const i01 = ((y0 + 1) * sw + x0) << 2;
+          const i11 = ((y0 + 1) * sw + x0 + 1) << 2;
+
+          const w00 = (1 - fx) * (1 - fy);
+          const w10 = fx * (1 - fy);
+          const w01 = (1 - fx) * fy;
+          const w11 = fx * fy;
+
+          const dIdx = (y * dstW + x) << 2;
+          dstData[dIdx]     = srcData[i00] * w00 + srcData[i10] * w10 + srcData[i01] * w01 + srcData[i11] * w11;
+          dstData[dIdx + 1] = srcData[i00 + 1] * w00 + srcData[i10 + 1] * w10 + srcData[i01 + 1] * w01 + srcData[i11 + 1] * w11;
+          dstData[dIdx + 2] = srcData[i00 + 2] * w00 + srcData[i10 + 2] * w10 + srcData[i01 + 2] * w01 + srcData[i11 + 2] * w11;
+          dstData[dIdx + 3] = 255;
+        }
+      }
+
+      outCtx.putImageData(outImg, 0, 0);
+      return outCanvas;
+    }
+
+    function computeHomography3x3(src, dst) {
+      // Solve 8x8 linear system via Gaussian elimination for 3x3 homography matrix
+      const A = [];
+      const b = [];
+      for (let i = 0; i < 4; i++) {
+        const x = src[i].x, y = src[i].y;
+        const u = dst[i].x, v = dst[i].y;
+        A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+        b.push(u);
+        A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+        b.push(v);
+      }
+
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        let maxRow = i;
+        for (let k = i + 1; k < n; k++) {
+          if (Math.abs(A[k][i]) > Math.abs(A[maxRow][i])) maxRow = k;
+        }
+        [A[i], A[maxRow]] = [A[maxRow], A[i]];
+        [b[i], b[maxRow]] = [b[maxRow], b[i]];
+
+        const pivot = Math.abs(A[i][i]) < 1e-9 ? 1e-9 : A[i][i];
+        for (let k = i + 1; k < n; k++) {
+          const factor = A[k][i] / pivot;
+          b[k] -= factor * b[i];
+          for (let j = i; j < n; j++) A[k][j] -= factor * A[i][j];
+        }
+      }
+
+      const h = new Float64Array(9);
+      h[8] = 1;
+      for (let i = n - 1; i >= 0; i--) {
+        let sum = b[i];
+        for (let j = i + 1; j < n; j++) sum -= A[i][j] * h[j];
+        h[i] = sum / (Math.abs(A[i][i]) < 1e-9 ? 1e-9 : A[i][i]);
+      }
+      return h;
+    }
+
+    function snapSeam1D(profile, minIdx, maxIdx, expectedIdx) {
+      const s = Math.max(0, Math.floor(minIdx));
+      const e = Math.min(profile.length - 1, Math.ceil(maxIdx));
+      let bestIdx = expectedIdx;
+      let bestScore = -1;
+      for (let i = s; i <= e; i++) {
+        const penalty = Math.abs(i - expectedIdx) * 0.003;
+        const score = profile[i] - penalty;
+        if (score > bestScore) {
+          bestScore = score;
+          bestIdx = i;
+        }
+      }
+      return bestScore > 0.14 ? bestIdx : expectedIdx;
+    }
+
+    function inferColumnIdentityFromCanonical(normInk, cw, ch, vLines, hLines) {
+      const gx0 = vLines[0];
+      const numRight = vLines[1];
+      const numW = Math.max(14, numRight - gx0);
+      const widths = new Float32Array(ROWS_PER_COL);
+
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const y0 = Math.floor(hLines[r] + (hLines[r + 1] - hLines[r]) * 0.18);
+        const y1 = Math.ceil(hLines[r + 1] - (hLines[r + 1] - hLines[r]) * 0.18);
+        const x0 = Math.floor(gx0 + numW * 0.12);
+        const x1 = Math.ceil(numRight - numW * 0.12);
+
+        let minX = x1, maxX = x0, found = false;
+        for (let py = y0; py < y1; py++) {
+          const off = py * cw;
+          for (let px = x0; px < x1; px++) {
+            if (normInk[off + px] > 0.35) {
+              if (px < minX) minX = px;
+              if (px > maxX) maxX = px;
+              found = true;
+            }
+          }
+        }
+        widths[r] = found && maxX >= minX ? (maxX - minX + 1) / Math.max(1, x1 - x0) : 0;
+      }
+
+      const sorted1to9 = Array.from(widths.slice(0, 9)).sort((a, b) => a - b);
+      const med1to9 = sorted1to9[4];
+      const w10 = Math.max(0.18, widths[9]);
+      if (med1to9 / w10 < 0.72 && med1to9 < 0.48) return 0; // Kolom 1 (1-10)
+      return -1;
+    }
+
+    /**
+     * ============================================================================
+     * TAB 2: FULL-SHEET PHOTO UPLOAD & REALISTIC SMK N 1 GONDANG SAMPLE
+     * ============================================================================
+     */
+    function handlePhotoSheetUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          loadPhotoIntoWorkspace(img, false);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function loadPhotoIntoWorkspace(img, autoAnalyze = false) {
+      state.sheetImage = img;
+      document.getElementById('photoWelcomeOverlay').classList.add('hidden');
+      document.getElementById('interactiveBoxesLayer').classList.remove('hidden');
+
+      autoLocateFourColumnBoxes(true);
+      paintFullSheetCanvas();
+      renderInteractivePhotoBoxes();
+
+      if (autoAnalyze) {
+        analyzeAllFourPhotoColumns();
+      } else {
+        showToast('Foto dimuat! Sesuaikan 4 kotak kolom lalu klik "Analisis Enterprise 4 Kolom".', 'info');
+      }
+    }
+
+    function autoLocateFourColumnBoxes(silent = false) {
+      if (!state.sheetImage) return;
+      const img = state.sheetImage;
+      const w = 360;
+      const h = Math.round(img.height * (w / img.width));
+      const tmp = document.createElement('canvas');
+      tmp.width = w;
+      tmp.height = h;
+      const ctx = tmp.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const rgba = ctx.getImageData(0, 0, w, h).data;
+
+      const lum = new Uint8Array(w * h);
+      for (let i = 0; i < w * h; i++) {
+        const p = i << 2;
+        lum[i] = (77 * rgba[p] + 150 * rgba[p + 1] + 29 * rgba[p + 2]) >> 8;
+      }
+
+      const hProj = new Float32Array(h);
+      const x0 = Math.floor(w * 0.05);
+      const x1 = Math.floor(w * 0.95);
+      for (let y = Math.floor(h * 0.20); y < Math.floor(h * 0.85); y++) {
+        let dark = 0;
+        const off = y * w;
+        for (let x = x0; x < x1; x++) if (lum[off + x] < 148) dark++;
+        hProj[y] = dark / Math.max(1, x1 - x0);
+      }
+
+      let bestTop = -1;
+      let bestBot = -1;
+      let bestScore = 0;
+      for (let t = Math.floor(h * 0.22); t < Math.floor(h * 0.56); t++) {
+        if (hProj[t] < 0.34) continue;
+        for (let b = t + Math.floor(h * 0.18); b <= Math.min(Math.floor(h * 0.82), t + Math.floor(h * 0.52)); b++) {
+          if (hProj[b] < 0.34) continue;
+          const span = b - t;
+          let internal = 0;
+          for (let r = 1; r < 10; r++) {
+            const ry = Math.round(t + (span * r) / 10);
+            internal += Math.max(hProj[ry - 1] || 0, hProj[ry] || 0, hProj[ry + 1] || 0);
+          }
+          const score = hProj[t] + hProj[b] + (internal / 9) * 1.6;
+          if (score > bestScore) {
+            bestScore = score;
+            bestTop = t;
+            bestBot = b;
+          }
+        }
+      }
+
+      if (bestTop < 0) {
+        bestTop = Math.floor(h * 0.312);
+        bestBot = Math.floor(h * 0.606);
+      }
+
+      const th = Math.max(12, bestBot - bestTop);
+      const vProj = new Float32Array(w);
+      for (let x = 0; x < w; x++) {
+        let dark = 0;
+        for (let y = bestTop; y <= bestBot; y++) if (lum[y * w + x] < 148) dark++;
+        vProj[x] = dark / th;
+      }
+
+      const segs = [];
+      let inSeg = false;
+      let segS = 0;
+      for (let x = Math.floor(w * 0.03); x <= Math.floor(w * 0.97); x++) {
+        if (vProj[x] >= 0.08) {
+          if (!inSeg) { inSeg = true; segS = x; }
+        } else if (inSeg) {
+          if (x - segS >= w * 0.12) segs.push({ x0: segS, x1: x - 1 });
+          inSeg = false;
+        }
+      }
+      if (inSeg && Math.floor(w * 0.97) - segS >= w * 0.12) segs.push({ x0: segS, x1: Math.floor(w * 0.97) });
+
+      if (segs.length === 4) {
+        state.photoColBoxes = segs.map((s) => ({
+          x: s.x0 / w,
+          y: bestTop / h,
+          w: (s.x1 - s.x0) / w,
+          h: (bestBot - bestTop) / h
+        }));
+      } else {
+        const outerW = w * 0.87;
+        const gapW = outerW * 0.025;
+        const singleW = (outerW - gapW * 3) / 4;
+        state.photoColBoxes = Array.from({ length: 4 }, (_, c) => ({
+          x: (w * 0.064 + c * (singleW + gapW)) / w,
+          y: bestTop / h,
+          w: singleW / w,
+          h: (bestBot - bestTop) / h
+        }));
+      }
+
+      renderInteractivePhotoBoxes();
+      if (!silent) showToast('Posisi 4 kotak kolom telah direset.', 'info');
+    }
+
+    function paintFullSheetCanvas() {
+      if (!state.sheetImage) return;
+      const container = document.getElementById('photoCanvasWrapper');
+      const canvas = document.getElementById('fullSheetDisplayCanvas');
+      const vw = container.clientWidth || 360;
+      const vh = container.clientHeight || 480;
+      canvas.width = vw;
+      canvas.height = vh;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, vw, vh);
+
+      const scale = Math.min(vw / state.sheetImage.width, vh / state.sheetImage.height);
+      const dw = state.sheetImage.width * scale;
+      const dh = state.sheetImage.height * scale;
+      const dx = (vw - dw) / 2;
+      const dy = (vh - dh) / 2;
+
+      state.sheetDrawRect = { dx, dy, dw, dh };
+      ctx.drawImage(state.sheetImage, dx, dy, dw, dh);
+    }
+
+    function renderInteractivePhotoBoxes() {
+      const layer = document.getElementById('interactiveBoxesLayer');
+      const { dx, dy, dw, dh } = state.sheetDrawRect;
+      if (!layer || !dw || !dh) return;
+
+      layer.innerHTML = '';
+      state.photoColBoxes.forEach((box, idx) => {
+        const isSel = idx === state.activeCol;
+        const el = document.createElement('div');
+        el.className = isSel
+          ? 'absolute border-2 border-emerald-400 bg-emerald-400/10 rounded-md cursor-move touch-none shadow-lg'
+          : 'absolute border-2 border-cyan-400/80 bg-cyan-400/5 rounded-md cursor-move touch-none';
+
+        el.style.left = `${dx + box.x * dw}px`;
+        el.style.top = `${dy + box.y * dh}px`;
+        el.style.width = `${box.w * dw}px`;
+        el.style.height = `${box.h * dh}px`;
+
+        const tag = document.createElement('div');
+        tag.className = isSel
+          ? 'absolute -top-4 left-0 px-1.5 py-0.2 rounded-t bg-emerald-500 text-slate-950 text-[9px] font-black pointer-events-none whitespace-nowrap'
+          : 'absolute -top-4 left-0 px-1.5 py-0.2 rounded-t bg-cyan-500 text-slate-950 text-[9px] font-extrabold pointer-events-none whitespace-nowrap';
+        tag.textContent = `K${idx + 1} (${COL_RANGES[idx]})`;
+        el.appendChild(tag);
+
+        const handle = document.createElement('div');
+        handle.className = 'absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-amber-400 border-2 border-slate-950 shadow cursor-nwse-resize touch-none flex items-center justify-center text-[9px] font-black text-slate-950';
+        handle.textContent = '↘';
+        el.appendChild(handle);
+
+        const beginDrag = (e, mode) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectActiveColumn(idx);
+          const pt = e.touches && e.touches.length ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY };
+          state.activeDrag = {
+            idx,
+            mode,
+            startX: pt.x,
+            startY: pt.y,
+            orig: { ...state.photoColBoxes[idx] }
+          };
+        };
+
+        el.addEventListener('mousedown', (e) => { if (e.target !== handle) beginDrag(e, 'move'); });
+        el.addEventListener('touchstart', (e) => { if (e.target !== handle) beginDrag(e, 'move'); }, { passive: false });
+        handle.addEventListener('mousedown', (e) => beginDrag(e, 'resize'));
+        handle.addEventListener('touchstart', (e) => beginDrag(e, 'resize'), { passive: false });
+
+        layer.appendChild(el);
+      });
+    }
+
+    function setupPhotoBoxPointerHandlers() {
+      const move = (e) => {
+        if (!state.activeDrag) return;
+        e.preventDefault();
+        const pt = e.touches && e.touches.length ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY };
+        const { dw, dh } = state.sheetDrawRect;
+        if (!dw || !dh) return;
+
+        const dx = (pt.x - state.activeDrag.startX) / dw;
+        const dy = (pt.y - state.activeDrag.startY) / dh;
+        const box = state.photoColBoxes[state.activeDrag.idx];
+
+        if (state.activeDrag.mode === 'move') {
+          box.x = Math.max(0, Math.min(1 - state.activeDrag.orig.w, state.activeDrag.orig.x + dx));
+          box.y = Math.max(0, Math.min(1 - state.activeDrag.orig.h, state.activeDrag.orig.y + dy));
+        } else {
+          box.w = Math.max(0.06, Math.min(1 - state.activeDrag.orig.x, state.activeDrag.orig.w + dx));
+          box.h = Math.max(0.08, Math.min(1 - state.activeDrag.orig.y, state.activeDrag.orig.h + dy));
+        }
+        renderInteractivePhotoBoxes();
+      };
+      const end = () => { state.activeDrag = null; };
+
+      window.addEventListener('mousemove', move);
+      window.addEventListener('touchmove', move, { passive: false });
+      window.addEventListener('mouseup', end);
+      window.addEventListener('touchend', end);
+    }
+
+    function analyzeAllFourPhotoColumns() {
+      if (!state.sheetImage) {
+        showToast('Unggah foto lembar jawab atau muat sampel terlebih dahulu.', 'warning');
+        return;
+      }
+
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        const box = state.photoColBoxes[c];
+        const padX = box.w * 0.05;
+        const padY = box.h * 0.03;
+        const sx = Math.max(0, (box.x - padX) * state.sheetImage.width);
+        const sy = Math.max(0, (box.y - padY) * state.sheetImage.height);
+        const sw = Math.min(state.sheetImage.width - sx, (box.w + padX * 2) * state.sheetImage.width);
+        const sh = Math.min(state.sheetImage.height - sy, (box.h + padY * 2) * state.sheetImage.height);
+
+        const crop = document.createElement('canvas');
+        crop.width = 460;
+        crop.height = 920;
+        crop.getContext('2d').drawImage(state.sheetImage, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+
+        const res = runEnterpriseColumnPipeline(crop, c, false);
+        const inspectionObj = {
+          colIdx: c,
+          canonicalCanvas: res.canonicalCanvas,
+          vLines: res.vLines,
+          hLines: res.hLines,
+          letterBaseline: res.letterBaseline,
+          rows: res.rows,
+          tenengrad: Math.round(computeSobelTenengradScore(crop.getContext('2d'), crop.width, crop.height)),
+          sourceLabel: 'Homografi Foto Utuh'
+        };
+        commitColumnInspection(c, inspectionObj, false);
+      }
+
+      state.auditCol = 0;
+      renderColumnCards();
+      renderSideCameraAudit();
+      renderPhotoSummaryCards();
+      renderAuditView();
+      recalculateScores();
+      playConfirmationChime();
+      showToast('Analisis Enterprise 40 soal (Homografi + Letter Subtraction) selesai!', 'success');
+    }
+
+    function loadReferenceSampleSheet() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 960;
+      canvas.height = 1340;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f4f3ef';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 17px sans-serif';
+      ctx.fillText('PEMERINTAH PROVINSI JAWA TENGAH — DINAS PENDIDIKAN', 480, 56);
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText('SEKOLAH MENENGAH KEJURUAN NEGERI 1 GONDANG', 480, 84);
+      ctx.fillRect(85, 118, 790, 3);
+
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('LEMBAR JAWAB ASESMEN SUMATIF AKHIR SEMESTER (ASAS) GASAL', 480, 152);
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('TAHUN AJARAN 2026 / 2027', 480, 176);
+
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(72, 200, 816, 140);
+      ctx.beginPath();
+      ctx.moveTo(480, 200); ctx.lineTo(480, 340);
+      for (let r = 1; r <= 3; r++) {
+        ctx.moveTo(72, 200 + r * 35);
+        ctx.lineTo(888, 200 + r * 35);
+      }
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('Mata Pelajaran : PAI', 86, 223);
+      ctx.fillText('Hari/Tanggal   : Selasa / 24 Nov 2026', 86, 258);
+      ctx.fillText('Waktu          : 07.00 - 08.30', 86, 293);
+      ctx.fillText('Kompetensi     : DKV', 86, 328);
+
+      ctx.fillText('Nama           : Nathasyia Yuliana Putri', 494, 223);
+      ctx.fillText('Kelas          : XI DKV 1', 494, 258);
+      ctx.fillText('Nomor Peserta  : XI-5-019', 494, 293);
+      ctx.fillText('Nilai          :', 494, 328);
+
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('A. PILIHAN GANDA', 72, 392);
+
+      const leftMargin = 62;
+      const totalGridW = 836;
+      const colGap = 22;
+      const colW = (totalGridW - colGap * 3) / 4;
+      const topY = 420;
+      const gridH = 390;
+      const rowH = gridH / 10;
+      const numSubW = colW * 0.182;
+      const optSubW = (colW - numSubW) / 5;
+
+      // Exact answers matching the SMK Negeri 1 Gondang sheet
+      const sheetAnswers = [
+        'A','E','B','C','B','C','B','C','D','D', // 1-10
+        'E','B','E','E','D','E','C','A','E','D', // 11-20
+        'D','B','D','E','C','D','C','A','A','D', // 21-30
+        'E','C','B','C','A','C','C','D','A','A'  // 31-40
+      ];
+
+      for (let c = 0; c < 4; c++) {
+        const bx = leftMargin + c * (colW + colGap);
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, topY, colW, gridH);
+
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(bx + numSubW, topY);
+        ctx.lineTo(bx + numSubW, topY + gridH);
+        for (let o = 1; o < 5; o++) {
+          const vx = bx + numSubW + o * optSubW;
+          ctx.moveTo(vx, topY);
+          ctx.lineTo(vx, topY + gridH);
+        }
+        ctx.stroke();
+
+        for (let r = 0; r < 10; r++) {
+          const qNum = c * 10 + r + 1;
+          const ry = topY + r * rowH;
+
+          if (r > 0) {
+            ctx.beginPath();
+            ctx.moveTo(bx, ry);
+            ctx.lineTo(bx + colW, ry);
+            ctx.stroke();
+          }
+
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 15px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${qNum}.`, bx + numSubW / 2, ry + rowH * 0.66);
+
+          const chosen = sheetAnswers[qNum - 1];
+          for (let o = 0; o < 5; o++) {
+            const letter = OPTIONS[o];
+            const cx = bx + numSubW + o * optSubW;
+
+            ctx.fillStyle = '#334155';
+            ctx.font = '14px sans-serif';
+            ctx.fillText(letter, cx + optSubW / 2, ry + rowH * 0.66);
+
+            if (letter === chosen) {
+              drawHandwrittenX(ctx, cx, ry, optSubW, rowH, false);
+            }
+            // Scratched-out corrections on Q7 (A) and Q28 (E)
+            if ((qNum === 7 && letter === 'A') || (qNum === 28 && letter === 'E')) {
+              drawHandwrittenX(ctx, cx, ry, optSubW, rowH, true);
+            }
+          }
+        }
+      }
+
+      document.getElementById('metaStudentName').value = 'Nathasyia Yuliana Putri';
+      document.getElementById('metaStudentClass').value = 'XI DKV 1';
+      document.getElementById('metaStudentNumber').value = 'XI-5-019';
+      document.getElementById('metaSubject').value = 'PAI';
+
+      const img = new Image();
+      img.onload = function () {
+        loadPhotoIntoWorkspace(img, true);
+      };
+      img.src = canvas.toDataURL('image/png');
+    }
+
+    function drawHandwrittenX(ctx, cx, cy, cw, ch, isScratchedOut) {
+      ctx.save();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = isScratchedOut ? 2.6 : 2.9;
+      ctx.lineCap = 'round';
+      const px = cw * 0.16;
+      const py = ch * 0.16;
+      ctx.beginPath();
+      ctx.moveTo(cx + px, cy + py);
+      ctx.lineTo(cx + cw - px, cy + ch - py);
+      ctx.moveTo(cx + cw - px, cy + py);
+      ctx.lineTo(cx + px, cy + ch - py);
+      if (isScratchedOut) {
+        // Dense horizontal & diagonal scribble bars (> 60% ink fill)
+        for (let k = 0.25; k <= 0.75; k += 0.12) {
+          ctx.moveTo(cx + px * 0.5, cy + ch * k);
+          ctx.lineTo(cx + cw - px * 0.5, cy + ch * k);
+        }
+        for (let k = 0.25; k <= 0.75; k += 0.16) {
+          ctx.moveTo(cx + cw * k, cy + py * 0.5);
+          ctx.lineTo(cx + cw * k, cy + ch - py * 0.5);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /**
+     * ============================================================================
+     * STATE COMMIT & VISUAL AUDIT RENDERERS
+     * ============================================================================
+     */
+    function commitColumnInspection(colIdx, inspectionObj, refreshUi = true) {
+      state.inspections[colIdx] = inspectionObj;
+      state.colStatus[colIdx] = 'done';
+
+      const startQ = colIdx * ROWS_PER_COL + 1;
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const qNum = startQ + r;
+        const row = inspectionObj.rows[r];
+        state.answers[qNum] = {
+          selected: row.selected,
+          confidence: row.confidence,
+          flagged: row.flagged,
+          flagReason: row.flagReason,
+          netScores: row.netScores
+        };
+      }
+
+      state.auditCol = colIdx;
+
+      // Move activeCol to next pending column
+      let nextCol = colIdx;
+      for (let step = 1; step <= TOTAL_COLS; step++) {
+        const cand = (colIdx + step) % TOTAL_COLS;
+        if (state.colStatus[cand] !== 'done') {
+          nextCol = cand;
+          break;
+        }
+      }
+      state.activeCol = nextCol;
+      if (state.colStatus[nextCol] !== 'done') state.colStatus[nextCol] = 'active';
+      syncColumnPillsUI();
+
+      if (refreshUi) {
+        renderColumnCards();
+        renderSideCameraAudit();
+        renderPhotoSummaryCards();
+        renderAuditView();
+        recalculateScores();
+      }
+    }
+
+    function paintWarpedColumnOverlay(targetCanvas, colIdx) {
+      if (!targetCanvas) return;
+      const ctx = targetCanvas.getContext('2d');
+      const w = targetCanvas.width;
+      const h = targetCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const insp = state.inspections[colIdx];
+      const startQ = colIdx * ROWS_PER_COL + 1;
+
+      if (!insp || !insp.canonicalCanvas) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = '#1e293b';
+        ctx.strokeRect(8, 8, w - 16, h - 16);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '700 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Kolom ${colIdx + 1} (${COL_RANGES[colIdx]})`, w / 2, h / 2 - 8);
+        ctx.fillText('Menunggu hasil pindai', w / 2, h / 2 + 10);
+        return;
+      }
+
+      const srcW = insp.canonicalCanvas.width;
+      const srcH = insp.canonicalCanvas.height;
+      const sx = w / srcW;
+      const sy = h / srcH;
+
+      ctx.drawImage(insp.canonicalCanvas, 0, 0, w, h);
+
+      // Draw 7x11 grid seams
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let g = 1; g <= 5; g++) {
+        const vx = insp.vLines[g] * sx;
+        ctx.moveTo(vx, 0);
+        ctx.lineTo(vx, h);
+      }
+      for (let r = 1; r < ROWS_PER_COL; r++) {
+        const hy = insp.hLines[r] * sy;
+        ctx.moveTo(0, hy);
+        ctx.lineTo(w, hy);
+      }
+      ctx.stroke();
+
+      // Highlight detected cell per row
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const qNum = startQ + r;
+        const ans = state.answers[qNum];
+        if (!ans || !ans.selected) continue;
+        const oIdx = OPTIONS.indexOf(ans.selected);
+        if (oIdx < 0) continue;
+
+        const x0 = insp.vLines[oIdx + 1] * sx;
+        const x1 = insp.vLines[oIdx + 2] * sx;
+        const y0 = insp.hLines[r] * sy;
+        const y1 = insp.hLines[r + 1] * sy;
+
+        if (ans.flagged) {
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.42)';
+          ctx.strokeStyle = '#fbbf24';
+        } else {
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.40)';
+          ctx.strokeStyle = '#10b981';
+        }
+        ctx.fillRect(x0 + 1, y0 + 1, Math.max(4, x1 - x0 - 2), Math.max(4, y1 - y0 - 2));
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x0 + 1, y0 + 1, Math.max(4, x1 - x0 - 2), Math.max(4, y1 - y0 - 2));
+      }
+    }
+
+    function renderSideCameraAudit() {
+      const colIdx = state.auditCol;
+      const startQ = colIdx * ROWS_PER_COL + 1;
+      document.getElementById('camSideWarpedLabel').textContent = `Kolom ${colIdx + 1} (No. ${COL_RANGES[colIdx]})`;
+      paintWarpedColumnOverlay(document.getElementById('camSideWarpedCanvas'), colIdx);
+
+      const list = document.getElementById('camSideRowsList');
+      if (!list) return;
+      let html = '';
+
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const qNum = startQ + r;
+        const ans = state.answers[qNum] || { selected: null, confidence: 0, flagged: false };
+
+        let btns = '';
+        OPTIONS.forEach((letter) => {
+          const isSel = ans.selected === letter;
+          const cls = isSel
+            ? ans.flagged
+              ? 'w-6 h-6 rounded-md bg-amber-400 text-slate-950 border border-amber-300 text-[10px] font-black'
+              : 'w-6 h-6 rounded-md bg-emerald-500 text-slate-950 border border-emerald-400 text-[10px] font-black'
+            : 'w-6 h-6 rounded-md bg-slate-950 text-slate-400 border border-slate-800 hover:border-slate-600 text-[10px] font-bold';
+          btns += `<button type="button" onclick="overrideQuestionAnswer(${qNum}, '${letter}')" class="${cls}">${letter}</button>`;
+        });
+
+        const confStr = ans.confidence ? `${ans.confidence}%` : '';
+        const flagBadge = ans.flagged ? `<span class="text-amber-400 font-black text-xs" title="${escapeHtml(ans.flagReason || 'Perlu cek')}">⚠</span>` : '';
+
+        html += `
+          <div class="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-950 border ${ans.flagged ? 'border-amber-500/60' : 'border-slate-800'}">
+            <div class="flex items-center gap-1.5">
+              <span class="w-6 text-xs font-extrabold text-slate-300">${qNum}.</span>
+              <div class="flex items-center gap-1">${btns}</div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              ${flagBadge}
+              <span class="text-[10px] font-extrabold ${ans.flagged ? 'text-amber-400' : 'text-emerald-400'}">${confStr}</span>
+            </div>
+          </div>
+        `;
+      }
+      list.innerHTML = html;
+    }
+
+    function renderPhotoSummaryCards() {
+      const grid = document.getElementById('photoQuickSummaryGrid');
+      if (!grid) return;
+      let html = '';
+
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        const startQ = c * ROWS_PER_COL + 1;
+        let lines = '';
+        for (let r = 0; r < ROWS_PER_COL; r++) {
+          const qNum = startQ + r;
+          const ans = state.answers[qNum];
+          const val = ans?.selected || '—';
+          const color = ans?.flagged ? 'text-amber-400 font-black' : ans?.selected ? 'text-emerald-400 font-black' : 'text-slate-600';
+          lines += `
+            <div class="flex items-center justify-between text-[11px] py-0.5 px-1.5 rounded hover:bg-slate-900">
+              <span class="text-slate-400 font-semibold">${qNum}.</span>
+              <span class="${color}">${val}${ans?.flagged ? ' ⚠' : ''}</span>
+            </div>
+          `;
+        }
+        html += `
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
+            <div class="text-[11px] font-extrabold text-cyan-300 border-b border-slate-800 pb-1 mb-1">Kolom ${c + 1} (${COL_RANGES[c]})</div>
+            <div class="divide-y divide-slate-900">${lines}</div>
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+
+      const insp = state.inspections[state.auditCol];
+      if (insp && insp.letterBaseline) {
+        const b = insp.letterBaseline;
+        document.getElementById('calibrationTelemetryText').textContent =
+          `Kolom ${state.auditCol + 1} dikalibrasi (${insp.sourceLabel}) • Signature median huruf cetak kosong: A=${b[0]}, B=${b[1]}, C=${b[2]}, D=${b[3]}, E=${b[4]}. Huruf tebal seperti B & E otomatis dikurangkan dari skor silang.`;
+      }
+    }
+
+    function setAuditColumn(colIdx) {
+      state.auditCol = colIdx;
+      renderAuditView();
+    }
+
+    function renderAuditView() {
+      const colIdx = state.auditCol;
+      const startQ = colIdx * ROWS_PER_COL + 1;
+
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        const btn = document.getElementById(`auditColTab-${c}`);
+        if (!btn) continue;
+        btn.className = c === colIdx
+          ? 'px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 text-[11px] font-black transition'
+          : 'px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold transition';
+      }
+
+      document.getElementById('auditCanonicalCaption').textContent = `Kanonik 420×840 • Kolom ${colIdx + 1} (${COL_RANGES[colIdx]})`;
+      paintWarpedColumnOverlay(document.getElementById('auditCanonicalCanvas'), colIdx);
+
+      const insp = state.inspections[colIdx];
+      if (insp && insp.letterBaseline) {
+        const b = insp.letterBaseline;
+        document.getElementById('auditBaselineValues').textContent = `A: ${b[0]} | B: ${b[1]} | C: ${b[2]} | D: ${b[3]} | E: ${b[4]}`;
+      } else {
+        document.getElementById('auditBaselineValues').textContent = 'A: -- | B: -- | C: -- | D: -- | E: --';
+      }
+
+      const diagContainer = document.getElementById('auditDiagnosticRows');
+      if (!diagContainer) return;
+      let html = '';
+
+      for (let r = 0; r < ROWS_PER_COL; r++) {
+        const qNum = startQ + r;
+        const ans = state.answers[qNum] || { selected: null, confidence: 0, flagged: false, flagReason: '', netScores: [0,0,0,0,0] };
+        const key = state.answerKey[qNum - 1];
+
+        let optBtns = '';
+        OPTIONS.forEach((letter, oIdx) => {
+          const isSel = ans.selected === letter;
+          const isKey = key === letter;
+          const netVal = ans.netScores ? ans.netScores[oIdx] : 0;
+
+          let cls = 'px-1.5 py-1 rounded-lg text-[10px] font-black flex flex-col items-center leading-tight border transition ';
+          if (isSel) {
+            if (ans.flagged) cls += 'bg-amber-400 text-slate-950 border-amber-300 shadow';
+            else if (isKey) cls += 'bg-emerald-500 text-slate-950 border-emerald-400 shadow';
+            else cls += 'bg-rose-500 text-white border-rose-400 shadow';
+          } else if (isKey) {
+            cls += 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40 border-dashed';
+          } else {
+            cls += 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-600';
+          }
+
+          optBtns += `
+            <button type="button" onclick="overrideQuestionAnswer(${qNum}, '${letter}')" class="${cls}" title="Net X-Score: ${netVal}">
+              <span>${letter}</span>
+              <span class="text-[8px] opacity-80 font-mono">${netVal > 0 ? netVal.toFixed(0) : '0'}</span>
+            </button>
+          `;
+        });
+
+        const statusBadge = !ans.selected
+          ? `<span class="text-[10px] font-bold text-slate-500">Kosong (${key})</span>`
+          : ans.flagged
+            ? `<span class="text-[10px] font-extrabold text-amber-400" title="${escapeHtml(ans.flagReason)}">⚠ ${ans.confidence}%</span>`
+            : ans.selected === key
+              ? `<span class="text-[10px] font-extrabold text-emerald-400">✓ ${ans.confidence}%</span>`
+              : `<span class="text-[10px] font-extrabold text-rose-400">✗ (${key})</span>`;
+
+        html += `
+          <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-slate-950 border ${ans.flagged ? 'border-amber-500/60' : 'border-slate-800'}">
+            <div class="flex items-center gap-1.5">
+              <span class="w-6 text-xs font-extrabold text-slate-300">${qNum}.</span>
+              <div class="flex items-center gap-1">${optBtns}</div>
+            </div>
+            <div class="text-right shrink-0">${statusBadge}</div>
+          </div>
+        `;
+      }
+      diagContainer.innerHTML = html;
+    }
+
+    function overrideQuestionAnswer(qNum, letter) {
+      const prev = state.answers[qNum];
+      const nextSel = prev && prev.selected === letter ? null : letter;
+      state.answers[qNum] = {
+        selected: nextSel,
+        confidence: nextSel ? 100 : 0,
+        flagged: false,
+        flagReason: '',
+        netScores: prev?.netScores || [0, 0, 0, 0, 0]
+      };
+      renderColumnCards();
+      renderSideCameraAudit();
+      renderPhotoSummaryCards();
+      renderAuditView();
+      recalculateScores();
+    }
+
+    /**
+     * ============================================================================
+     * COLUMN CARDS, ANSWER KEY & GRADEBOOK CSV EXPORT
+     * ============================================================================
+     */
+    function renderColumnCards() {
+      const row = document.getElementById('columnCardsRow');
+      if (!row) return;
+      row.innerHTML = '';
+
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        const startQ = c * ROWS_PER_COL + 1;
+        const endQ = (c + 1) * ROWS_PER_COL;
+        const isAct = c === state.activeCol;
+        const isDone = state.colStatus[c] === 'done';
+
+        let filled = 0;
+        let flagged = 0;
+        for (let q = startQ; q <= endQ; q++) {
+          if (state.answers[q]?.selected) filled++;
+          if (state.answers[q]?.flagged) flagged++;
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => selectActiveColumn(c);
+        btn.className = isAct
+          ? 'flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-500/15 border-2 border-emerald-400 text-left shadow transition'
+          : isDone
+            ? 'flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-emerald-500/40 hover:border-emerald-400 text-left transition'
+            : 'flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-left transition';
+
+        const pill = isAct
+          ? '<span class="px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950 text-[9px] font-black">AKTIF</span>'
+          : isDone
+            ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-extrabold">SELESAI ✓</span>'
+            : '<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-bold">ANTRI</span>';
+
+        btn.innerHTML = `
+          <div>
+            <div class="text-xs font-extrabold text-white">Kolom ${c + 1} (${startQ}–${endQ})</div>
+            <div class="text-[10px] text-slate-400">${filled}/10 Terisi ${flagged > 0 ? `<span class="text-amber-400 font-bold">• ${flagged}⚠</span>` : ''}</div>
+          </div>
+          ${pill}
+        `;
+        row.appendChild(btn);
+      }
+    }
+
+    function selectActiveColumn(colIdx) {
+      state.activeCol = colIdx;
+      state.auditCol = colIdx;
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        if (c === colIdx && state.colStatus[c] !== 'done') state.colStatus[c] = 'active';
+        else if (state.colStatus[c] === 'active') state.colStatus[c] = 'pending';
+      }
+      syncColumnPillsUI();
+      renderColumnCards();
+      renderSideCameraAudit();
+      renderAuditView();
+      if (state.activeTab === 'photo' && state.sheetImage) {
+        renderInteractivePhotoBoxes();
+      }
+    }
+
+    function syncColumnPillsUI() {
+      document.getElementById('hudTargetColBadge').textContent = `Target: Kolom ${state.activeCol + 1} (No. ${COL_RANGES[state.activeCol]})`;
+      document.querySelectorAll('.cam-col-pill').forEach((el, idx) => {
+        el.className = idx === state.activeCol
+          ? 'cam-col-pill px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 text-[11px] font-black'
+          : 'cam-col-pill px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold';
+      });
+    }
+
+    function toggleAutoColumnRouting() {
+      state.autoColumnRouting = !state.autoColumnRouting;
+      const btn = document.getElementById('btnToggleAutoRoute');
+      btn.textContent = state.autoColumnRouting ? '🧭 Auto-Route Kolom: ON' : '📌 Auto-Route Kolom: OFF';
+      btn.className = state.autoColumnRouting
+        ? 'px-2.5 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-[11px] font-extrabold text-cyan-300 transition'
+        : 'px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-300 transition';
+    }
+
+    function clearSelectedColumn(colIdx) {
+      const startQ = colIdx * ROWS_PER_COL + 1;
+      const endQ = (colIdx + 1) * ROWS_PER_COL;
+      for (let q = startQ; q <= endQ; q++) {
+        state.answers[q] = { selected: null, confidence: 0, flagged: false, flagReason: '', netScores: [0,0,0,0,0] };
+      }
+      state.inspections[colIdx] = null;
+      state.colStatus[colIdx] = 'active';
+      state.activeCol = colIdx;
+      state.auditCol = colIdx;
+      syncColumnPillsUI();
+      renderColumnCards();
+      renderSideCameraAudit();
+      renderPhotoSummaryCards();
+      renderAuditView();
+      recalculateScores();
+      showToast(`Kolom ${colIdx + 1} (${COL_RANGES[colIdx]}) dikosongkan.`, 'info');
+    }
+
+    function resetCurrentSheet() {
+      resetAnswersData();
+      state.activeCol = 0;
+      state.auditCol = 0;
+      state.colStatus = ['active', 'pending', 'pending', 'pending'];
+      state.inspections = [null, null, null, null];
+      document.getElementById('metaStudentName').value = '';
+      document.getElementById('metaStudentClass').value = '';
+      document.getElementById('metaStudentNumber').value = '';
+      document.getElementById('metaSubject').value = '';
+      syncColumnPillsUI();
+      renderColumnCards();
+      renderSideCameraAudit();
+      renderPhotoSummaryCards();
+      renderAuditView();
+      recalculateScores();
+      showToast('Lembar jawab telah direset.', 'info');
+    }
+
+    function toggleAnswerKeyDrawer() {
+      const body = document.getElementById('answerKeyDrawerBody');
+      const chev = document.getElementById('keyDrawerChevron');
+      const isHidden = body.classList.contains('hidden');
+      if (isHidden) {
+        body.classList.remove('hidden');
+        chev.textContent = '▲ Tutup';
+        renderAnswerKeyMatrix();
+      } else {
+        body.classList.add('hidden');
+        chev.textContent = '▼ Buka';
+      }
+    }
+
+    function renderAnswerKeyMatrix() {
+      const grid = document.getElementById('answerKeyMatrixGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      for (let q = 1; q <= TOTAL_QUESTIONS; q++) {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950 border border-slate-800';
+        row.innerHTML = `<span class="text-[11px] font-bold text-slate-400 w-6">${q}.</span>`;
+
+        const grp = document.createElement('div');
+        grp.className = 'flex items-center gap-0.5';
+        OPTIONS.forEach((letter) => {
+          const isKey = state.answerKey[q - 1] === letter;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = letter;
+          btn.onclick = () => {
+            state.answerKey[q - 1] = letter;
+            saveStorage();
+            renderAnswerKeyMatrix();
+            renderAuditView();
+            recalculateScores();
+          };
+          btn.className = isKey
+            ? 'w-5 h-5 rounded bg-emerald-500 text-slate-950 text-[10px] font-black'
+            : 'w-5 h-5 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 text-[10px] font-bold';
+          grp.appendChild(btn);
+        });
+        row.appendChild(grp);
+        grid.appendChild(row);
+      }
+    }
+
+    function applyPastedAnswerKey() {
+      const clean = document.getElementById('keyPasteField').value.toUpperCase().replace(/[^A-E]/g, '');
+      if (!clean.length) {
+        showToast('Masukkan huruf kunci A–E yang valid.', 'warning');
+        return;
+      }
+      const len = Math.min(TOTAL_QUESTIONS, clean.length);
+      for (let i = 0; i < len; i++) state.answerKey[i] = clean[i];
+      saveStorage();
+      renderAnswerKeyMatrix();
+      renderAuditView();
+      recalculateScores();
+      showToast(`${len} kunci jawaban berhasil diterapkan!`, 'success');
+    }
+
+    function copyScannedAsAnswerKey() {
+      let count = 0;
+      for (let q = 1; q <= TOTAL_QUESTIONS; q++) {
+        if (state.answers[q]?.selected) {
+          state.answerKey[q - 1] = state.answers[q].selected;
+          count++;
+        }
+      }
+      if (!count) {
+        showToast('Belum ada hasil pindai untuk dijadikan kunci.', 'warning');
+        return;
+      }
+      saveStorage();
+      renderAnswerKeyMatrix();
+      renderAuditView();
+      recalculateScores();
+      showToast(`${count} jawaban hasil scan ditetapkan sebagai Kunci!`, 'success');
+    }
+
+    function resetDefaultAnswerKey() {
+      state.answerKey = [...REFERENCE_KEY];
+      saveStorage();
+      renderAnswerKeyMatrix();
+      renderAuditView();
+      recalculateScores();
+      showToast('Kunci jawaban dikembalikan ke default.', 'info');
+    }
+
+    function recalculateScores() {
+      let correct = 0;
+      let wrong = 0;
+      let doubt = 0;
+
+      for (let q = 1; q <= TOTAL_QUESTIONS; q++) {
+        const ans = state.answers[q];
+        const key = state.answerKey[q - 1];
+        if (!ans || !ans.selected) {
+          doubt++;
+        } else if (ans.selected === key) {
+          correct++;
+        } else {
+          wrong++;
+        }
+      }
+
+      const finalScore = (correct / TOTAL_QUESTIONS) * 100;
+      document.getElementById('scoreCorrectCount').textContent = String(correct);
+      document.getElementById('scoreWrongCount').textContent = String(wrong);
+      document.getElementById('scoreDoubtCount').textContent = String(doubt);
+      document.getElementById('scoreFinalValue').textContent = finalScore.toFixed(1);
+    }
+
+    function saveStudentToGradebook() {
+      const name = document.getElementById('metaStudentName').value.trim() || `Siswa #${state.gradebook.length + 1}`;
+      const studentClass = document.getElementById('metaStudentClass').value.trim() || '-';
+      const studentNumber = document.getElementById('metaStudentNumber').value.trim() || '-';
+      const subject = document.getElementById('metaSubject').value.trim() || 'Umum';
+
+      const correct = parseInt(document.getElementById('scoreCorrectCount').textContent, 10);
+      const wrong = parseInt(document.getElementById('scoreWrongCount').textContent, 10);
+      const doubt = parseInt(document.getElementById('scoreDoubtCount').textContent, 10);
+      const score = parseFloat(document.getElementById('scoreFinalValue').textContent);
+
+      const ansArr = [];
+      for (let q = 1; q <= TOTAL_QUESTIONS; q++) {
+        ansArr.push(state.answers[q]?.selected || '-');
+      }
+
+      state.gradebook.unshift({
+        id: Date.now(),
+        timestamp: new Date().toLocaleString('id-ID'),
+        name,
+        studentClass,
+        studentNumber,
+        subject,
+        correct,
+        wrong,
+        doubt,
+        score,
+        answers: ansArr.join('')
+      });
+
+      saveStorage();
+      renderGradebookTable();
+      showToast(`Nilai ${name} (${score.toFixed(1)}) disimpan ke Rekap Nilai!`, 'success');
+    }
+
+    function renderGradebookTable() {
+      const tbody = document.getElementById('gradebookBody');
+      const count = state.gradebook.length;
+      document.getElementById('gradebookBadgeCount').textContent = String(count);
+      if (!tbody) return;
+
+      if (count === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="10" class="py-8 text-center text-slate-500 text-xs">
+              Belum ada data nilai tersimpan. Klik <strong>Simpan ke Rekap Nilai</strong> setelah memindai lembar jawab.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = state.gradebook
+        .map(
+          (r, i) => `
+          <tr class="hover:bg-slate-900/60">
+            <td class="py-2.5 px-3 text-slate-400">${i + 1}</td>
+            <td class="py-2.5 px-3 font-bold text-white">${escapeHtml(r.name)}</td>
+            <td class="py-2.5 px-3 text-slate-300">${escapeHtml(r.studentClass)}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-400">${escapeHtml(r.studentNumber)}</td>
+            <td class="py-2.5 px-3 text-slate-300">${escapeHtml(r.subject || '-')}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-emerald-400">${r.correct}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-rose-400">${r.wrong}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-amber-400">${r.doubt}</td>
+            <td class="py-2.5 px-3 text-center">
+              <span class="px-2 py-0.5 rounded-lg font-black text-xs ${r.score >= 75 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                ${Number(r.score).toFixed(1)}
+              </span>
+            </td>
+            <td class="py-2.5 px-3 text-right">
+              <button type="button" onclick="removeGradebookRow(${r.id})" class="text-rose-400 hover:underline font-semibold">Hapus</button>
+            </td>
+          </tr>
+        `
+        )
+        .join('');
+    }
+
+    function removeGradebookRow(id) {
+      state.gradebook = state.gradebook.filter((r) => r.id !== id);
+      saveStorage();
+      renderGradebookTable();
+    }
+
+    function clearGradebook() {
+      state.gradebook = [];
+      saveStorage();
+      renderGradebookTable();
+      showToast('Rekap nilai dikosongkan.', 'info');
+    }
+
+    function exportGradebookCSV() {
+      if (state.gradebook.length === 0) {
+        saveStudentToGradebook();
+      }
+      const headers = ['No', 'Waktu', 'Nama Siswa', 'Kelas', 'Nomor Peserta', 'Mata Pelajaran', 'Benar', 'Salah', 'Ragu/Kosong', 'Nilai Akhir', 'Jawaban (1-40)'];
+      const rows = state.gradebook.map((r, i) => [
+        i + 1,
+        `"${r.timestamp}"`,
+        `"${r.name.replace(/"/g, '""')}"`,
+        `"${r.studentClass.replace(/"/g, '""')}"`,
+        `"${r.studentNumber.replace(/"/g, '""')}"`,
+        `"${(r.subject || '').replace(/"/g, '""')}"`,
+        r.correct,
+        r.wrong,
+        r.doubt,
+        r.score.toFixed(1),
+        `"${r.answers}"`
+      ]);
+
+      const csv = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Rekap_Nilai_SmartOMR_Enterprise_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('File CSV / Excel berhasil diunduh!', 'success');
+    }
+
+    function playConfirmationChime() {
+      try {
+        if (!state.audioCtx) state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+        const now = state.audioCtx.currentTime;
+        const osc = state.audioCtx.createOscillator();
+        const gain = state.audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(state.audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(659.25, now);
+        osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.14);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.start(now);
+        osc.stop(now + 0.19);
+      } catch (e) {}
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      const styles = {
+        success: 'bg-emerald-500 text-slate-950 border-emerald-400',
+        warning: 'bg-amber-400 text-slate-950 border-amber-300',
+        error: 'bg-rose-600 text-white border-rose-500',
+        info: 'bg-slate-800 text-white border-slate-700'
+      };
+      el.className = `pointer-events-auto px-3.5 py-2.5 rounded-xl shadow-xl border text-xs font-extrabold animate-fade-in ${styles[type] || styles.info}`;
+      el.textContent = msg;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.2s ease';
+        setTimeout(() => el.remove(), 220);
+      }, 2800);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
+```
